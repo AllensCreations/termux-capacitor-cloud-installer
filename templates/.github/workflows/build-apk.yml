@@ -1,0 +1,77 @@
+name: Build Android APK (Capacitor + Gradle)
+
+on:
+  push:
+    branches: [ main, master, Version2 ]
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Cloud Capacitor & Gradle APK Builder
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ☕ Set up Java JDK 17 (Temurin)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 📱 Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 🟩 Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+        continue-on-error: true
+
+      - name: 📦 Install Capacitor Core & Android CLI
+        run: |
+          if [ ! -f package.json ]; then
+            npm init -y
+          fi
+          npm install --save @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: 🛠️ Ensure Web Directory and Entrypoint Exist
+        run: |
+          if [ ! -d "src" ]; then
+            mkdir -p src
+            if [ -f "index.html" ]; then
+              cp index.html src/
+            else
+              echo "<!DOCTYPE html><html><head><title>Offline App</title></head><body><h1>Welcome</h1></body></html>" > src/index.html
+            fi
+          fi
+
+      - name: ⚡ Initialize Android Platform & Sync Web Assets
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+          npx cap sync android
+
+      - name: 🐘 Compile APK with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --stacktrace
+
+      - name: 📤 Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      - name: 📋 Summary
+        run: |
+          echo "### 🚀 Build Successful!" >> $GITHUB_STEP_SUMMARY
+          echo "The Android APK was compiled using Gradle in the GitHub Cloud runner." >> $GITHUB_STEP_SUMMARY
+          echo "- **Artifact Name:** \`app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Download via Termux:** \`gh run download ${{ github.run_id }} -n app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
