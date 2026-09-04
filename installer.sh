@@ -586,13 +586,33 @@ jobs:
           echo "Building Android App Bundle (.aab) for Google Play..."
           ./gradlew bundleDebug --stacktrace || true
 
+      - name: 🏷️ Package Binaries with (RepoName-Version) Naming
+        run: |
+          REPO_NAME="${GITHUB_REPOSITORY##*/}"
+          VERSION_TAG="v1.0.${{ github.run_number }}"
+          mkdir -p release-assets
+
+          # Copy and rename APK to RepoName-Version.apk
+          APK_SRC="android/app/build/outputs/apk/debug/app-debug.apk"
+          if [ -f "$APK_SRC" ]; then
+            CUSTOM_APK="release-assets/${REPO_NAME}-${VERSION_TAG}.apk"
+            cp -f "$APK_SRC" "$CUSTOM_APK"
+            echo "✓ Packaged APK: $CUSTOM_APK"
+          fi
+
+          # Copy and rename AAB to RepoName-Version.aab
+          AAB_SRC="android/app/build/outputs/bundle/debug/app-debug.aab"
+          if [ -f "$AAB_SRC" ]; then
+            CUSTOM_AAB="release-assets/${REPO_NAME}-${VERSION_TAG}.aab"
+            cp -f "$AAB_SRC" "$CUSTOM_AAB"
+            echo "✓ Packaged AAB: $CUSTOM_AAB"
+          fi
+
       - name: 📤 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: app-binaries
-          path: |
-            android/app/build/outputs/apk/debug/*.apk
-            android/app/build/outputs/bundle/debug/*.aab
+          path: release-assets/*
           retention-days: 14
 
       - name: 🚀 Auto-Publish to GitHub Releases
@@ -621,12 +641,124 @@ jobs:
             4. **Version Code:** Increment `versionCode` in `android/app/build.gradle` for every release upload.
             5. **Store Assets:** 512x512 icon, 1024x500 feature graphic, 2+ screenshots, and HTTPS Privacy Policy URL.
             6. **Closed Testing:** 20 testers for at least 14 continuous days (for accounts created after Nov 2023).
-          files: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/bundle/debug/app-debug.aab
+          files: release-assets/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 WORKFLOW
+
+# 2b. .github/workflows/deploy-pages.yml (Instant Live Web Preview on GitHub Pages)
+cat << 'PAGES_WF' > "$TARGET_DIR/.github/workflows/deploy-pages.yml"
+name: Deploy Live Web Preview (GitHub Pages)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy-pages:
+    name: 🌐 Deploy src/ to GitHub Pages
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🛠️ Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: 📦 Stage & Upload Web Artifacts (src/)
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'src'
+
+      - name: 🚀 Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+PAGES_WF
+
+# 2c. .github/workflows/audit-mobile.yml (Relative Path Guard & White Blank Screen Prevention)
+cat << 'AUDIT_WF' > "$TARGET_DIR/.github/workflows/audit-mobile.yml"
+name: Audit Mobile Compatibility & Relative Paths
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  lint-mobile:
+    name: 🛡️ Mobile Guard & Relative Path Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Scan for Breaking Absolute Root Paths
+        run: |
+          echo "Scanning for root-leading paths (/css, /js, /assets) in web source..."
+          ERRORS=0
+          if grep -rnE '(src|href)=["'"'"']/([a-zA-Z0-9_-]+)' src/ 2>/dev/null; then
+            echo "::error::Found absolute root paths above! In Android WebViews, use strictly relative paths (e.g., 'css/style.css' instead of '/css/style.css')."
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ Zero broken root paths found in src/."
+          fi
+          exit $ERRORS
+
+      - name: 📋 Validate JSON Configuration Files
+        run: |
+          node -e "
+          const fs = require('fs');
+          const files = ['manifest.json', 'src/manifest.json', 'capacitor.config.json', 'package.json'];
+          for (const f of files) {
+            if (fs.existsSync(f)) {
+              try {
+                JSON.parse(fs.readFileSync(f, 'utf8'));
+                console.log('✓ ' + f + ' is valid JSON');
+              } catch (e) {
+                console.error('::error file=' + f + '::Invalid JSON: ' + e.message);
+                process.exit(1);
+              }
+            }
+          }
+          "
+AUDIT_WF
+
+# 2d. .github/workflows/clean-artifacts.yml (Actions Storage Quota Cleaner)
+cat << 'CLEAN_WF' > "$TARGET_DIR/.github/workflows/clean-artifacts.yml"
+name: Cleanup Old Build Artifacts
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  prune-artifacts:
+    name: 🧹 Prune Old Workflow Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧹 Delete Artifacts Older than 14 Days
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: '14 days'
+          skip-recent: 5
+CLEAN_WF
 
 # 3. AI_INSTRUCTIONS.md
 cat << 'AI_DOC' > "$TARGET_DIR/AI_INSTRUCTIONS.md"
@@ -659,6 +791,22 @@ You are an expert mobile developer and project organizer. Review the provided re
 
 ---
 
+## ⚡ 0ms Fast & Smooth Performance Standard (No Animation Bloat)
+- **What "Smooth" Means:** "Smoother" does **NOT** mean adding heavy 60fps/120fps physics loops, complex canvas particle engines, or high-overhead transitions that bog down mobile CPU/GPUs and make phones laggy.
+- **Fast & 0ms Responsive Rules:**
+  - **0ms Startup:** Keep `launchShowDuration: 0` in `capacitor.config.json`. Do not insert artificial loading screens, timers, or splash delays.
+  - **0ms Tap Response:** Use `touch-action: manipulation` and `-webkit-tap-highlight-color: transparent` to eliminate the 300ms mobile browser click latency.
+  - **Snappy Transitions:** UI changes and view switches should be instantaneous or use micro-transitions (<= 100ms).
+  - **Zero CPU Hogs:** Avoid non-stop `setInterval` or `requestAnimationFrame` loops when the screen is idle.
+
+---
+
+## 🏷️ Custom Binary Naming Standard (No Generic 'app-debug.apk')
+- Never name compiled releases or APK downloads `app-debug.apk` or `app-debug.aab`.
+- All outputs are packaged and tagged as **`<RepoName>-<Version>.apk`** and **`<RepoName>-<Version>.aab`** (e.g. `FightingLightsV-v1.0.35.apk`).
+
+---
+
 ## 🏪 Google Play Store Publishing Standards (Important for AI)
 When suggesting version bumps, assets, or packaging, adhere to:
 1. **App Format:** Target Android App Bundle (`.aab`) for production uploads.
@@ -677,19 +825,15 @@ When suggesting version bumps, assets, or packaging, adhere to:
 - **Format:** `512x512 px` (or 1024x1024 px) PNG.
 - **Automated Generation:** The cloud build pipeline automatically resizes `assets/icon.png` into all Android launcher mipmap densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) including adaptive foreground and round icons, as well as web PWA icons (`src/icon-192.png`, `src/icon-512.png`).
 - **Instant Launch (Zero Splash Screen Delay):**
-  - Capacitor defaults to a 3-second delay with a popup icon. This has been disabled via `plugins.SplashScreen` in `capacitor.config.json` (`launchShowDuration: 0`, `launchAutoHide: true`, `showSpinner: false`).
-  - Do NOT re-introduce artificial delays, startup popups, or blocking spinners in `index.html` or `capacitor.config.json`. The web app must boot smoothly and instantly (0ms) upon launch.
+  - Configured with `launchShowDuration: 0` and `showSpinner: false` in `capacitor.config.json` with a clean launch drawable. The web app boots smoothly and instantly (0ms).
 
 ---
 
-## 🐘 Automated Cloud Gradle Build & GitHub Release Pipeline
-The GitHub Actions workflow `.github/workflows/build-apk.yml`:
-1. Pulls the latest code, installs Capacitor, and runs `npx cap sync android`.
-2. Generates all Android launcher icon densities from `assets/icon.png` and eliminates splash delay.
-3. Compiles:
-   - **`app-debug.apk`**: Direct download for instant testing on Android devices.
-   - **`app-debug.aab`**: Android App Bundle for Google Play Console.
-4. **Automatically publishes a GitHub Release** tagged `v1.0.<run_number>` with direct download links attached!
+## 🐘 Automated Cloud CI/CD Workflows
+1. **`build-apk.yml`:** Automatically compiles `<RepoName>-<Version>.apk` and `<RepoName>-<Version>.aab` and publishes a GitHub Release.
+2. **`deploy-pages.yml`:** Deploys `src/` to GitHub Pages for instant live web preview.
+3. **`audit-mobile.yml`:** Protects against white blank screens by catching broken absolute paths.
+4. **`clean-artifacts.yml`:** Prunes old build artifacts to save GitHub storage.
 AI_DOC
 
 # 4. GOOGLE_PLAY_STORE_GUIDE.md
@@ -785,7 +929,11 @@ cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
 │   ├── js/                            # ⚙️ Application logic (app.js)
 │   └── assets/                        # 🖼️ Offline icons, images, fonts (mirrored icon.png)
 │
-├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + Icon Generator + Releases
+├── .github/workflows/
+│   ├── build-apk.yml                  # 🤖 Cloud CI/CD: Gradle APK/AAB build + Auto-Renamer + Releases
+│   ├── deploy-pages.yml               # 🌐 Live Web Preview deployed to GitHub Pages
+│   ├── audit-mobile.yml               # 🛡️ Guard against breaking absolute paths & invalid JSON
+│   └── clean-artifacts.yml            # 🧹 Storage pruner for old GitHub Actions artifacts
 ├── capacitor.config.json              # 📱 Capacitor native bridge (0ms instant splash configuration)
 ├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
 ├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
@@ -821,17 +969,20 @@ See [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md) for full directory specific
 
 ---
 
-## ⚡ Instant App Launch (Zero Splash Screen Delay)
+## ⚡ Instant App Launch (Zero Splash Screen Delay & 0ms Fast)
 - Pre-configured with **\`"launchShowDuration": 0\`** and **\`"showSpinner": false\`** in \`capacitor.config.json\`.
 - The app opens **immediately and smoothly (0ms)** without any loading icon popup or artificial delay.
+- Smoothness means instant responsiveness and zero animation bloat—keeping the app fast on mobile and Termux.
 
 ---
 
 ## 🤖 Cloud Gradle APK/AAB Compilation & Releases
 Every push to \`main\` automatically compiles both the Android APK and App Bundle (.aab) in GitHub Actions and publishes a **GitHub Release**:
 
-- **Direct Download:** Check the **Releases** tab on GitHub to download the latest \`app-debug.apk\`.
+- **Custom-Named Binaries:** Releases are named **\`${SELECTED_REPO##*/}-v1.0.<run_number>.apk\`** and **\`${SELECTED_REPO##*/}-v1.0.<run_number>.aab\`** (no generic \`app-debug.apk\`!).
+- **Direct Download:** Check the **Releases** tab on GitHub to download the latest APK.
 - **Play Store Requirements:** See [GOOGLE_PLAY_STORE_GUIDE.md](GOOGLE_PLAY_STORE_GUIDE.md) for the complete publishing checklist.
+- **🌐 Live Web Preview:** Automatically deployed to GitHub Pages on every push.
 README_DOC
 else
   if ! grep -q "Cloud Gradle APK/AAB Compilation" "$TARGET_DIR/README.md"; then
@@ -852,7 +1003,7 @@ else
 
 ## 🤖 Cloud Gradle APK/AAB Compilation & Releases
 Every push automatically compiles the Android APK and App Bundle (.aab) in GitHub Actions and publishes a **GitHub Release**:
-- **Releases Tab:** Download \`app-debug.apk\` from your GitHub Releases page.
+- **Releases Tab:** Download \`${SELECTED_REPO##*/}-v1.0.<run_number>.apk\` from your GitHub Releases page.
 - **Store Rules:** See \`GOOGLE_PLAY_STORE_GUIDE.md\` for Google Play publishing rules.
 README_APPEND
   fi

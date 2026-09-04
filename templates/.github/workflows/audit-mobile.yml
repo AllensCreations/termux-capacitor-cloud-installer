@@ -1,0 +1,44 @@
+name: Audit Mobile Compatibility & Relative Paths
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+
+jobs:
+  lint-mobile:
+    name: 🛡️ Mobile Guard & Relative Path Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔍 Scan for Breaking Absolute Root Paths
+        run: |
+          echo "Scanning for root-leading paths (/css, /js, /assets) in web source..."
+          ERRORS=0
+          if grep -rnE '(src|href)=["'"'"']/([a-zA-Z0-9_-]+)' src/ 2>/dev/null; then
+            echo "::error::Found absolute root paths above! In Android WebViews, use strictly relative paths (e.g., 'css/style.css' instead of '/css/style.css')."
+            ERRORS=$((ERRORS + 1))
+          else
+            echo "✓ Zero broken root paths found in src/."
+          fi
+          exit $ERRORS
+
+      - name: 📋 Validate JSON Configuration Files
+        run: |
+          node -e "
+          const fs = require('fs');
+          const files = ['manifest.json', 'src/manifest.json', 'capacitor.config.json', 'package.json'];
+          for (const f of files) {
+            if (fs.existsSync(f)) {
+              try {
+                JSON.parse(fs.readFileSync(f, 'utf8'));
+                console.log('✓ ' + f + ' is valid JSON');
+              } catch (e) {
+                console.error('::error file=' + f + '::Invalid JSON: ' + e.message);
+                process.exit(1);
+              }
+            }
+          }
+          "

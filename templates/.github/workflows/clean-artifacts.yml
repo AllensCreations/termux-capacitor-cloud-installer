@@ -1,0 +1,20 @@
+name: Cleanup Old Build Artifacts
+
+on:
+  schedule:
+    - cron: '0 0 * * 0' # Every Sunday at midnight UTC
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  prune-artifacts:
+    name: 🧹 Prune Old Workflow Artifacts
+    runs-on: ubuntu-latest
+    steps:
+      - name: 🧹 Delete Artifacts Older than 14 Days
+        uses: c-hive/gha-remove-artifacts@v1
+        with:
+          age: '14 days'
+          skip-recent: 5

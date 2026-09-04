@@ -30,11 +30,14 @@ gh workflow run build-apk.yml
 gh run list --workflow=build-apk.yml
 
 # Download the latest artifact
-gh run download --name app-debug-apk
+gh run download --name app-binaries
 
 # (On Android Termux) Move to your storage
-mv app-debug.apk /sdcard/Download/
+mv *.apk /sdcard/Download/
 ```
+
+- **Custom-Named Binaries:** Releases and APK downloads are automatically named **`<REPO_NAME>-v1.0.<run_number>.apk`** instead of generic `app-debug.apk`.
+- **🌐 Live Web Preview:** Automatically deployed to GitHub Pages on every push.
 
 ---
 
@@ -45,10 +48,10 @@ mv app-debug.apk /sdcard/Download/
 
 ---
 
-## ⚡ Instant App Launch (Zero Splash Screen Delay)
-- By default, Capacitor displays a 3-second splash screen with a popup logo before rendering the app.
-- This repository has been pre-configured with **`"launchShowDuration": 0`** and **`"showSpinner": false`** in `capacitor.config.json` and a clean launch drawable.
+## ⚡ Instant App Launch (Zero Splash Screen Delay & 0ms Fast)
+- Pre-configured with **`"launchShowDuration": 0`** and **`"showSpinner": false`** in `capacitor.config.json` and a clean launch drawable.
 - The app opens **immediately and smoothly (0ms)** directly into your interface without any loading icon popup or blocking delay.
+- **Fast Performance Over Animation Bloat:** Smoothness means instant responsiveness, 0ms tap reaction (`touch-action: manipulation`), and zero heavy animation loops that lag low-end phones or Termux.
 
 ---
 

@@ -9,7 +9,11 @@
 │   ├── js/                            # ⚙️ Application logic (app.js)
 │   └── assets/                        # 🖼️ Offline icons, images, fonts (mirrored icon.png)
 │
-├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + Icon Generator + Releases
+├── .github/workflows/
+│   ├── build-apk.yml                  # 🤖 Cloud CI/CD: Gradle APK/AAB build + Auto-Renamer + Releases
+│   ├── deploy-pages.yml               # 🌐 Live Web Preview deployed to GitHub Pages
+│   ├── audit-mobile.yml               # 🛡️ Guard against breaking absolute paths & invalid JSON
+│   └── clean-artifacts.yml            # 🧹 Storage pruner for old GitHub Actions artifacts
 ├── capacitor.config.json              # 📱 Capacitor native bridge (0ms instant splash configuration)
 ├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
 ├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
