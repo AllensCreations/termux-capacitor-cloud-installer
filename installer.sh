@@ -78,7 +78,13 @@ if ! gh auth status >/dev/null 2>&1; then
 fi
 
 gh auth setup-git >/dev/null 2>&1 || true
-gh_user=$(gh api user -q .login 2>/dev/null || echo "user")
+gh_user=$(gh api user -q .login 2>/dev/null || true)
+if [ -z "$gh_user" ] || [ "$gh_user" = "user" ]; then
+  gh_user=$(gh auth status 2>&1 | grep -oE "account [a-zA-Z0-9_-]+" | head -n1 | awk '{print $2}' || true)
+fi
+if [ -z "$gh_user" ]; then
+  read -rp "Enter your GitHub username: " gh_user
+fi
 echo -e "      ${GREEN}✓ Logged in as:${NC} ${BOLD}${gh_user}${NC}"
 
 # ------------------------------------------------------------------------------
@@ -121,17 +127,37 @@ if [ "$mode_choice" = "1" ]; then
   read -rp "Description (Optional): " REPO_DESC
   REPO_DESC="${REPO_DESC:-Offline-first Capacitor app with Cloud Gradle CI & Auto-Releases}"
 
-  CLONE_DIR="${TMPDIR:-/tmp}/new-repo-$NEW_REPO_NAME"
-  rm -rf "$CLONE_DIR"
+  DEST_DIR="$(pwd)/$NEW_REPO_NAME"
+  if [ -d "$DEST_DIR" ]; then
+    echo -e "      ${YELLOW}Local directory ./${NEW_REPO_NAME} already exists.${NC}"
+  else
+    mkdir -p "$DEST_DIR"
+  fi
+
   echo -e "\nCreating GitHub repository ${CYAN}${gh_user}/${NEW_REPO_NAME}${NC}..."
-  gh repo create "$NEW_REPO_NAME" "--$REPO_VIS" --description "$REPO_DESC" --clone "$CLONE_DIR"
-  
+  if gh repo view "${gh_user}/${NEW_REPO_NAME}" >/dev/null 2>&1; then
+    echo -e "      ${YELLOW}Remote repository ${gh_user}/${NEW_REPO_NAME} already exists on GitHub. Linking...${NC}"
+  else
+    if ! gh repo create "$NEW_REPO_NAME" "--$REPO_VIS" --description "$REPO_DESC"; then
+      echo -e "      ${RED}Failed to create repository ${gh_user}/${NEW_REPO_NAME} on GitHub.${NC}"
+      exit 1
+    fi
+    echo -e "      ${GREEN}✓ Created remote repository on GitHub: ${gh_user}/${NEW_REPO_NAME}${NC}"
+  fi
+
+  cd "$DEST_DIR"
+  if [ ! -d ".git" ]; then
+    git init -b main 2>/dev/null || { git init && git checkout -B main 2>/dev/null || true; }
+  fi
+  git remote remove origin 2>/dev/null || true
+  git remote add origin "https://github.com/${gh_user}/${NEW_REPO_NAME}.git"
+
   SELECTED_REPO="${gh_user}/${NEW_REPO_NAME}"
-  TARGET_DIR="$CLONE_DIR"
+  TARGET_DIR="$DEST_DIR"
 
 elif [ "$mode_choice" = "2" ]; then
   echo -e "\nFetching your GitHub repositories..."
-  mapfile -t repos < <(gh repo list --limit 25 --json nameWithOwner,isPrivate,description --jq '.[] | "\(.nameWithOwner)\t\(if .isPrivate then "[Private]" else "[Public]" end)\t\(.description // "")"')
+  mapfile -t repos < <(gh repo list --limit 30 --json nameWithOwner,isPrivate,description --jq '.[] | "\(.nameWithOwner)\t\(if .isPrivate then "[Private]" else "[Public]" end)\t\(.description // "")"')
   
   idx=1
   for r in "${repos[@]}"; do
@@ -148,10 +174,18 @@ elif [ "$mode_choice" = "2" ]; then
     exit 1
   fi
 
-  CLONE_DIR="${TMPDIR:-/tmp}/existing-repo-$(date +%s)"
-  echo -e "\nCloning ${SELECTED_REPO}..."
-  git clone "https://github.com/$SELECTED_REPO.git" "$CLONE_DIR"
-  TARGET_DIR="$CLONE_DIR"
+  repo_folder="${SELECTED_REPO##*/}"
+  if [ "$(basename "$(pwd)")" = "$repo_folder" ] && [ -d ".git" ]; then
+    TARGET_DIR="$(pwd)"
+    echo -e "      ${GREEN}✓ Using current repository directory:${NC} $TARGET_DIR"
+  elif [ -d "$(pwd)/$repo_folder/.git" ]; then
+    TARGET_DIR="$(pwd)/$repo_folder"
+    echo -e "      ${GREEN}✓ Found existing local clone in:${NC} $TARGET_DIR"
+  else
+    TARGET_DIR="$(pwd)/$repo_folder"
+    echo -e "\nCloning ${SELECTED_REPO} into ${TARGET_DIR}..."
+    git clone "https://github.com/$SELECTED_REPO.git" "$TARGET_DIR"
+  fi
 
 elif [ "$mode_choice" = "3" ]; then
   IS_LOCAL=true
@@ -788,18 +822,26 @@ echo -e "      ${GREEN}✓ Digest created:${NC} ${BOLD}$(basename "$OUTPUT_DIGES
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}🚀 Pushing project to GitHub...${NC}"
 cd "$TARGET_DIR"
-git add .
-if git diff-index --quiet HEAD -- 2>/dev/null; then
-  echo "      No changes needed to commit."
-else
+git add -A
+if git status --porcelain | grep -q .; then
   git commit -m "feat: configure capacitor, cloud gradle CI, auto-releases, and AI migration context"
-  git push -u origin "$CURRENT_BRANCH"
-  echo -e "      ${GREEN}✓ Successfully pushed to GitHub!${NC}"
 fi
+
+CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
+[ -z "$CURRENT_BRANCH" ] && CURRENT_BRANCH="main"
+
+echo -e "      Pushing to origin/${CURRENT_BRANCH}..."
+if ! git push -u origin "$CURRENT_BRANCH" 2>/dev/null; then
+  echo -e "      ${YELLOW}Configuring Git credential helper and retrying...${NC}"
+  gh auth setup-git 2>/dev/null || true
+  git push -u origin "$CURRENT_BRANCH"
+fi
+echo -e "      ${GREEN}✓ Successfully pushed to GitHub!${NC}"
 
 echo -e "\n${BOLD}════════════════════════════════════════════════════════════════${NC}"
 echo -e "${GREEN}${BOLD}🎉 SUCCESS! Installation Completed!${NC}"
-echo -e "Repository: ${CYAN}https://github.com/${SELECTED_REPO}${NC}"
+echo -e "Repository:   ${CYAN}https://github.com/${SELECTED_REPO}${NC}"
+echo -e "Local Folder: ${CYAN}${TARGET_DIR}${NC}"
 echo -e "════════════════════════════════════════════════════════════════"
 
 if [ "$IS_NEW_REPO" = true ]; then
