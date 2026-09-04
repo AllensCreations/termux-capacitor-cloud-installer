@@ -1,6 +1,6 @@
 # ⚡ Termux Capacitor & Cloud Gradle Workflow Installer
 
-A fully automated, remote installer built for **Android Termux** and Linux terminal environments. It transforms any selected GitHub repository into an **offline-first Capacitor application** equipped with an automated **GitHub Actions Cloud Gradle APK builder**, complete directory organization docs, and a single-file codebase digest with an embedded AI prompt.
+A fully automated, remote installer built for **Android Termux** and Linux terminal environments. It provisions a clean GitHub repository into an **offline-first Capacitor application** equipped with an automated **GitHub Actions Cloud Gradle APK/AAB builder**, **automatic GitHub Releases**, a complete **Google Play Store Publishing Guide**, and a single-file codebase digest with an embedded AI prompt.
 
 ---
 
@@ -16,56 +16,45 @@ bash <(curl -fsSL https://raw.githubusercontent.com/AllensCreations/termux-capac
 
 ---
 
-## 🎯 What the Installer Does
+## 🎯 What the Installer Provides
 
-1. **Dependency Verification:** Automatically verifies/installs `gh`, `jq`, `git`, and `curl` via `pkg` (Termux) or `apt`.
-2. **GitHub CLI Authentication:** Ensures you are logged in via `gh auth login`.
-3. **Interactive Repo Selector:** Displays a numbered menu of your GitHub repositories to choose from.
-4. **Offline-First Restructuring:**
-   - Establishes a dedicated `src/` directory.
-   - Moves/creates `src/index.html` as the primary offline entry point.
-   - Groups stylesheets into `src/css/` and scripts into `src/js/`.
-5. **Capacitor Configuration:** Configures `capacitor.config.json` with `"webDir": "src"`.
-6. **Cloud Gradle Build CI (`build-apk.yml`):**
-   - Installs `.github/workflows/build-apk.yml`.
-   - Compiles native Android APKs on GitHub's fast Ubuntu runners (`./gradlew assembleDebug`).
-   - Keeps your phone 100% free from gigabytes of heavy Android SDKs and Java Gradle daemons.
-7. **Comprehensive Documentation:** Injects `FOLDER_ORGANIZATION.md` and updates `README.md`.
-8. **All-in-One Code Digest (`REPO_ALL_IN_ONE.txt`):**
-   - Pre-pends your expert mobile developer AI prompt.
-   - Generates directory hierarchy.
-   - Concatenates clean source files into a single context document ready to feed to an LLM.
-9. **Git Commit & Cloud Build Trigger:** Pushes changes to GitHub and can immediately dispatch the build workflow.
+1. **🌟 Clean New Repo Scaffolding (Recommended):**
+   - Automatically creates and configures a brand new repository on your GitHub account.
+   - Sets up an offline-first mobile app in `src/` (`index.html`, `css/style.css`, `js/app.js`) with responsive dark mode and offline storage.
+2. **🚀 Automatic GitHub Releases:**
+   - Every push to `main` compiles both an installable **Debug APK (`.apk`)** and a **Google Play Android App Bundle (`.aab`)** via Gradle.
+   - Automatically publishes a **GitHub Release** tagged `v1.0.<run_number>` with direct binary download links!
+3. **📱 Google Play Store Publishing Guide (`GOOGLE_PLAY_STORE_GUIDE.md`):**
+   - **Account Requirements:** $25 developer account fee, government ID verification, and D-U-N-S business numbers.
+   - **Technical Rules:** `.aab` bundle requirements, keystore cryptographic signing, Play App Signing, target API level, incremental `versionCode`, and 200MB size limits.
+   - **Store Listing & Policy:** 512x512 icon, 1024x500 feature graphic, screenshots, privacy policy URL, and content ratings.
+   - **Closed Testing:** 20 testers for 14 continuous days (for accounts created after Nov 2023).
+4. **🤖 AI Assistant Instructions (`AI_INSTRUCTIONS.md`):**
+   - Details the 5 strict rules for mobile WebView compatibility (relative paths, `src/` layout, offline storage, safe areas).
+   - Feed `AI_INSTRUCTIONS.md` or `REPO_ALL_IN_ONE.txt` to ChatGPT, Claude, Gemini, or Antigravity to build app features safely.
+5. **🐘 Zero-Setup Cloud Gradle CI (`build-apk.yml`):**
+   - Builds run 100% in GitHub Actions cloud runners.
+   - Keeps your phone completely free from gigabytes of heavy Android SDKs and Java Gradle daemons.
 
 ---
 
-## 📲 Downloading the Built APK to Your Phone
+## 📲 Downloading Your Release Binaries
 
-Once GitHub Actions finishes compiling your APK:
+### Option 1: Direct Browser Download
+Go to your repository's **Releases** tab:
+```
+https://github.com/<YOUR_USER>/<REPO>/releases
+```
+Click on `app-debug.apk` to download directly to your phone.
 
+### Option 2: Termux CLI Download
 ```bash
-# 1. Check workflow status
+# Check workflow runs
 gh run list --workflow=build-apk.yml
 
-# 2. Download the APK
-gh run download -n app-debug-apk
+# Download artifact via gh CLI
+gh run download -n app-binaries
 
-# 3. Move to Android Download folder (in Termux)
+# Move APK to your phone storage
 mv app-debug.apk /sdcard/Download/
-```
-
----
-
-## 📂 Repository Structure
-
-```
-termux-capacitor-cloud-installer/
-├── installer.sh                      # Master interactive curl/Termux installer
-├── templates/
-│   ├── .github/workflows/build-apk.yml  # Cloud Gradle CI workflow template
-│   ├── capacitor.config.json            # Base Capacitor configuration template
-│   ├── FOLDER_ORGANIZATION.md           # Architectural & layout documentation
-│   └── README.md                        # Target repository README template
-└── scripts/
-    └── generate_digest.sh               # Standalone digest flattener + prompt prepender
 ```

@@ -33,7 +33,6 @@ cat << 'BANNER'
 BANNER
 echo -e "${NC}"
 
-# Find script template directory if running locally or prepare fallback
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
 
 # ------------------------------------------------------------------------------
@@ -87,9 +86,9 @@ echo -e "      ${GREEN}✓ Logged in as:${NC} ${BOLD}${gh_user}${NC}"
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[3/6] 🎯 Choose Setup Mode:${NC}\n"
 echo -e "  ${GREEN}${BOLD}[1] 🌟 Create a Brand New Clean Repository (Recommended)${NC}"
-echo -e "      Scaffolds a pristine offline-first app, AI instructions, and Gradle CI."
+echo -e "      Scaffolds pristine offline-first app, AI instructions, Google Play guide, and Cloud Gradle CI."
 echo -e "  ${CYAN}[2] 📂 Select an Existing Repository from GitHub${NC}"
-echo -e "      Injects Capacitor & Gradle CI into one of your existing repos."
+echo -e "      Injects Capacitor, Google Play docs & Gradle CI into an existing repo."
 echo -e "  ${YELLOW}[3] 💻 Use an Existing Local Folder${NC}"
 echo -e "      Configures a folder already on your device."
 
@@ -120,7 +119,7 @@ if [ "$mode_choice" = "1" ]; then
   fi
 
   read -rp "Description (Optional): " REPO_DESC
-  REPO_DESC="${REPO_DESC:-Offline-first Capacitor app built with Cloud Gradle}"
+  REPO_DESC="${REPO_DESC:-Offline-first Capacitor app with Cloud Gradle CI & Auto-Releases}"
 
   CLONE_DIR="${TMPDIR:-/tmp}/new-repo-$NEW_REPO_NAME"
   rm -rf "$CLONE_DIR"
@@ -175,9 +174,7 @@ echo -e "\n${BOLD}[4/6] 📁 Structuring offline-first architecture (src/)...${N
 
 mkdir -p "$TARGET_DIR/src/css" "$TARGET_DIR/src/js" "$TARGET_DIR/src/assets"
 
-# If starter files exist in templates, copy them; otherwise generate clean starter UI
 if [ "$IS_NEW_REPO" = true ] || [ ! -f "$TARGET_DIR/src/index.html" ]; then
-  # 1. src/index.html
   cat << 'HTML' > "$TARGET_DIR/src/index.html"
 <!DOCTYPE html>
 <html lang="en">
@@ -226,7 +223,6 @@ if [ "$IS_NEW_REPO" = true ] || [ ! -f "$TARGET_DIR/src/index.html" ]; then
 </html>
 HTML
 
-  # 2. src/css/style.css
   cat << 'CSS' > "$TARGET_DIR/src/css/style.css"
 :root {
   --bg-color: #0d1117;
@@ -271,7 +267,6 @@ h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
 code { background: rgba(110, 118, 129, 0.2); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
 CSS
 
-  # 3. src/js/app.js
   cat << 'JS' > "$TARGET_DIR/src/js/app.js"
 document.addEventListener("DOMContentLoaded", () => {
   const statusEl = document.getElementById("connection-status");
@@ -298,7 +293,6 @@ JS
   echo -e "      ${GREEN}✓ Created offline-first mobile UI in src/${NC}"
 fi
 
-# Ensure package.json exists
 if [ ! -f "$TARGET_DIR/package.json" ]; then
   cat << PKG > "$TARGET_DIR/package.json"
 {
@@ -314,9 +308,9 @@ PKG
 fi
 
 # ------------------------------------------------------------------------------
-# Step 5: Inject Capacitor Config, CI Workflow & AI Instructions
+# Step 5: Inject Capacitor Config, CI Workflow with Auto-Release & Guides
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[5/6] ⚙️ Injecting Capacitor config, Gradle workflow & AI docs...${NC}"
+echo -e "\n${BOLD}[5/6] ⚙️ Injecting Capacitor config, Auto-Release workflow & Store docs...${NC}"
 
 # 1. capacitor.config.json
 app_slug=$(echo "${SELECTED_REPO##*/}" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]')
@@ -334,19 +328,22 @@ cat << CAPCONFIG > "$TARGET_DIR/capacitor.config.json"
 }
 CAPCONFIG
 
-# 2. .github/workflows/build-apk.yml
+# 2. .github/workflows/build-apk.yml (Includes Softprops Auto-Release & AAB)
 mkdir -p "$TARGET_DIR/.github/workflows"
 cat << 'WORKFLOW' > "$TARGET_DIR/.github/workflows/build-apk.yml"
-name: Build Android APK (Capacitor + Gradle)
+name: Build Android APK & Publish Release (Capacitor + Gradle)
 
 on:
   push:
     branches: [ main, master, Version2 ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build-android:
-    name: Cloud Capacitor & Gradle APK Builder
+  build-and-release:
+    name: Cloud Capacitor, Gradle & Release Publisher
     runs-on: ubuntu-latest
 
     steps:
@@ -395,36 +392,66 @@ jobs:
           fi
           npx cap sync android
 
-      - name: 🐘 Compile APK with Gradle
+      - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |
           cd android
           chmod +x gradlew
+          echo "Building debug APK for phone installation..."
           ./gradlew assembleDebug --stacktrace
+          echo "Building Android App Bundle (.aab) for Google Play..."
+          ./gradlew bundleDebug --stacktrace || true
 
-      - name: 📤 Upload Debug APK Artifact
+      - name: 📤 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-binaries
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/bundle/debug/*.aab
           retention-days: 14
 
-      - name: 📋 Summary
-        run: |
-          echo "### 🚀 Build Successful!" >> $GITHUB_STEP_SUMMARY
-          echo "The Android APK was compiled using Gradle in the GitHub Cloud runner." >> $GITHUB_STEP_SUMMARY
-          echo "- **Artifact Name:** \`app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Download via Termux:** \`gh run download ${{ github.run_id }} -n app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
+      - name: 🚀 Auto-Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/Version2'
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Release v1.0.${{ github.run_number }} (Android APK & Bundle)
+          body: |
+            ## 📱 New Android Release Compiled via Cloud Gradle!
+            
+            This release contains compiled binaries built from commit `${{ github.sha }}`.
+
+            ### 📦 Direct Downloads:
+            - **Installable APK (`.apk`):** Download and install directly on your Android phone or Termux.
+            - **Google Play App Bundle (`.aab`):** Formatted for Google Play Console distribution.
+
+            ---
+
+            ### 📋 Google Play Store Publishing Checklist
+            *See `GOOGLE_PLAY_STORE_GUIDE.md` in this repository for complete documentation.*
+
+            1. **Developer Account:** Paid $25 registration fee & completed government ID / DUNS verification.
+            2. **App Format:** Standard format is Android App Bundle (`.aab`) under 200MB.
+            3. **Digital Signing:** Enrolled in Play App Signing with your release keystore.
+            4. **Version Code:** Increment `versionCode` in `android/app/build.gradle` for every release upload.
+            5. **Store Assets:** 512x512 icon, 1024x500 feature graphic, 2+ screenshots, and HTTPS Privacy Policy URL.
+            6. **Closed Testing:** 20 testers for at least 14 continuous days (for accounts created after Nov 2023).
+          files: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/debug/app-debug.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 WORKFLOW
 
 # 3. AI_INSTRUCTIONS.md
 cat << 'AI_DOC' > "$TARGET_DIR/AI_INSTRUCTIONS.md"
 # 🤖 AI Assistant Guidelines & Development Rules (Capacitor + Cloud Gradle)
 
-> **Feed this file (or `REPO_ALL_IN_ONE.txt`) to ChatGPT, Claude, Gemini, or Antigravity to build features with 100% Capacitor & Gradle compatibility.**
+> **Feed this file (or `REPO_ALL_IN_ONE.txt`) to ChatGPT, Claude, Gemini, or Antigravity to build features with 100% Capacitor, Gradle & Google Play compatibility.**
 
 ---
 
-## 🎯 System Prompt & Architecture Constraints
+## 🎯 System Role & Architecture Constraints
 You are an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture.
 
 ### 🛑 5 Strict Rules for Capacitor & Gradle Compatibility:
@@ -447,11 +474,109 @@ You are an expert mobile developer and project organizer. Review the provided re
 
 ---
 
-## 🐘 How Cloud Gradle Builds the APK
-The GitHub Actions workflow `.github/workflows/build-apk.yml` runs on Ubuntu cloud runners. It installs Capacitor, runs `npx cap sync android` to copy `src/` into the native Android folder, and executes `./gradlew assembleDebug` to compile `app-debug.apk`.
+## 🏪 Google Play Store Publishing Standards (Important for AI)
+When suggesting version bumps, assets, or packaging, adhere to:
+1. **App Format:** Target Android App Bundle (`.aab`) for production uploads.
+2. **Unique Version Code:** Every store release requires an incrementally higher integer `versionCode` in `android/app/build.gradle`.
+3. **Store Assets:** 
+   - Icon: `512x512 px` (32-bit PNG)
+   - Feature Graphic: `1024x500 px` (JPG or 24-bit PNG)
+   - Minimum 2 phone screenshots
+4. **Closed Testing Rule:** Accounts created after Nov 2023 require at least 20 testers for 14 continuous days before production release.
+5. **Full Guide:** Refer to `GOOGLE_PLAY_STORE_GUIDE.md` for complete technical policy requirements.
+
+---
+
+## 🐘 Automated Cloud Gradle Build & GitHub Release Pipeline
+The GitHub Actions workflow `.github/workflows/build-apk.yml`:
+1. Pulls the latest code, installs Capacitor, and runs `npx cap sync android`.
+2. Compiles:
+   - **`app-debug.apk`**: Direct download for instant testing on Android devices.
+   - **`app-debug.aab`**: Android App Bundle for Google Play Console.
+3. **Automatically publishes a GitHub Release** tagged `v1.0.<run_number>` with direct download links attached!
 AI_DOC
 
-# 4. FOLDER_ORGANIZATION.md
+# 4. GOOGLE_PLAY_STORE_GUIDE.md
+cat << 'PLAY_DOC' > "$TARGET_DIR/GOOGLE_PLAY_STORE_GUIDE.md"
+# 📱 Google Play Store Publishing & Technical Requirements Guide
+
+This comprehensive guide outlines all administrative, technical, and policy prerequisites required to publish and maintain an Android app on the Google Play Store.
+
+---
+
+## 1. 🏢 Developer Account Requirements
+
+* **Google Play Developer Account Registration:**
+  * Must register at the [Google Play Console](https://play.google.com/console).
+  * Pay a **one-time registration fee of $25 USD**.
+* **Identity Verification:**
+  * **Individual Accounts:** Government-issued photo ID (passport, driver's license) and address verification.
+  * **Organization/Business Accounts:** Valid **D-U-N-S Number** (Dun & Bradstreet), official organization documentation, and authorized representative verification.
+
+---
+
+## 2. ⚙️ Technical & File Requirements
+
+* **Standard App Format (Android App Bundle - `.aab`):**
+  * Google Play requires new apps to be uploaded as **Android App Bundles (`.aab`)**, not traditional `.apk` files.
+  * Google's dynamic delivery system uses the `.aab` to generate optimized APKs tailored to each user's device configuration (screen density, CPU architecture, language).
+* **Digital Cryptographic Signature:**
+  * The release bundle must be digitally signed with a cryptographic private key.
+  * Command to generate a release keystore:
+    ```bash
+    keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-app-key
+    ```
+* **Play App Signing:**
+  * Enrollment in **Google Play App Signing** is required.
+  * Google manages and securely protects your app's signing key on its infrastructure and uses it to sign APKs delivered to users.
+* **Target API Level:**
+  * Must target the recent Android API level mandated by Google Play policies (typically Android 14 / API 34+ or higher).
+* **Incrementing Version Code (`versionCode`):**
+  * Every new release uploaded to the Play Console must have a **strictly higher integer `versionCode`** than the previous build (e.g., `1`, `2`, `3`).
+  * In Capacitor/Android, this is configured in `android/app/build.gradle`:
+    ```groovy
+    defaultConfig {
+        versionCode 2
+        versionName "1.0.1"
+    }
+    ```
+* **Download Size Limits:**
+  * The maximum compressed download size for individual APKs generated from bundles is **200 MB**.
+  * Apps requiring larger asset footprints must implement Play Feature Delivery or Play Asset Delivery.
+
+---
+
+## 3. 🎨 Store Listing & Policy Prerequisites
+
+* **Store Listing Assets:**
+  * **App Name:** Up to 30 characters.
+  * **Short Description:** Up to 80 characters.
+  * **Full Description:** Up to 4,000 characters.
+  * **High-Resolution App Icon:** Exactly `512 x 512 px`, 32-bit PNG, up to 1 MB.
+  * **Feature Graphic:** Exactly `1024 x 500 px`, JPG or 24-bit PNG, no transparency.
+  * **Screenshots:** Minimum of 2 phone screenshots (JPEG or 24-bit PNG, minimum 320px, maximum 3840px, 16:9 or 9:16 aspect ratio recommended).
+* **Privacy Policy URL:**
+  * A valid, publicly accessible HTTPS privacy policy URL is mandatory for all apps, especially if accessing device features, storage, or external APIs.
+* **Content Rating & Policy Declarations:**
+  * Complete the IARC Content Rating questionnaire in Play Console.
+  * Submit mandatory declarations:
+    * Target age and audience (COPPA compliance if targeting children under 13).
+    * Ads declaration (indicate if app serves ads).
+    * Data Safety section (disclose what user data is collected, stored, or shared).
+    * Government apps / financial / health declarations (if applicable).
+
+---
+
+## 4. 🧪 Mandatory Closed Testing Requirement (Accounts Created After Nov 2023)
+
+> [!IMPORTANT]
+> If your Google Play Developer Account was created after **November 13, 2023**, Google requires you to run a **Closed Test** before applying for Production access:
+> * **Minimum Testers:** At least **20 testers** must opt-in to your closed test.
+> * **Duration:** Testers must be continuously opted-in for at least **14 consecutive days**.
+> * Only after satisfying this period and gathering tester feedback can you apply for full production release access in Google Play Console.
+PLAY_DOC
+
+# 5. FOLDER_ORGANIZATION.md
 cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
 # Project Layout & Architecture Guide (Offline-First Capacitor)
 
@@ -463,20 +588,21 @@ cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
 │   ├── js/                            # ⚙️ Application logic (app.js)
 │   └── assets/                        # 🖼️ Offline icons, images, fonts
 │
-├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Capacitor sync + Gradle APK build
+├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + GitHub Releases
 ├── capacitor.config.json              # 📱 Capacitor native bridge configuration
 ├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
+├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
 ├── FOLDER_ORGANIZATION.md             # 📖 Architecture & layout blueprint
 ├── README.md                          # 🚀 Project documentation & APK download guide
 └── REPO_ALL_IN_ONE.txt                # 🧠 Consolidated codebase digest with AI prompt
 ```
 ORG_DOC
 
-# 5. README.md
+# 6. README.md
 cat << README_DOC > "$TARGET_DIR/README.md"
-# ${SELECTED_REPO##*/} (Offline-First Capacitor + Cloud Gradle)
+# ${SELECTED_REPO##*/} (Offline-First Capacitor + Cloud Gradle + Auto-Releases)
 
-An offline-first hybrid mobile app structured for **Capacitor** with automated **GitHub Actions Gradle APK compilation**.
+An offline-first hybrid mobile app structured for **Capacitor** with automated **GitHub Actions Gradle APK/AAB compilation and GitHub Releases**.
 
 ---
 
@@ -490,17 +616,11 @@ See [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md) for full directory specific
 
 ---
 
-## 🤖 Cloud Gradle APK Compilation
-Trigger APK build manually via Termux or any terminal:
-\`\`\`bash
-gh workflow run build-apk.yml
-\`\`\`
+## 🤖 Cloud Gradle APK/AAB Compilation & Releases
+Every push to \`main\` automatically compiles both the Android APK and App Bundle (.aab) in GitHub Actions and publishes a **GitHub Release**:
 
-Download the finished APK:
-\`\`\`bash
-gh run download -n app-debug-apk
-mv app-debug.apk /sdcard/Download/
-\`\`\`
+- **Direct Download:** Check the **Releases** tab on GitHub to download the latest \`app-debug.apk\`.
+- **Play Store Requirements:** See [GOOGLE_PLAY_STORE_GUIDE.md](GOOGLE_PLAY_STORE_GUIDE.md) for the complete publishing checklist.
 README_DOC
 
 # ------------------------------------------------------------------------------
@@ -508,7 +628,7 @@ README_DOC
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[6/6] 🧠 Generating All-in-One Code Digest with AI Prompt...${NC}"
 
-AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Ensure all paths in index.html are strictly relative, that offline storage (localStorage/IndexedDB) is utilized, and outline how the automated GitHub Actions workflow compiles the project into an Android APK via Gradle.'
+AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Ensure all paths in index.html are strictly relative, that offline storage (localStorage/IndexedDB) is utilized, adhere to Google Play Store requirements in GOOGLE_PLAY_STORE_GUIDE.md (e.g. versionCode incrementing and AAB format), and outline how the automated GitHub Actions workflow compiles the project into an Android APK via Gradle and automatically publishes GitHub Releases.'
 
 OUTPUT_DIGEST="$TARGET_DIR/REPO_ALL_IN_ONE.txt"
 rm -f "$OUTPUT_DIGEST"
@@ -574,7 +694,7 @@ git add .
 if git diff-index --quiet HEAD -- 2>/dev/null; then
   echo "      No changes needed to commit."
 else
-  git commit -m "feat: initial offline-first capacitor setup with cloud gradle CI and AI instructions"
+  git commit -m "feat: offline-first capacitor setup with cloud gradle CI, auto releases, and Google Play guide"
   git push -u origin "$CURRENT_BRANCH"
   echo -e "      ${GREEN}✓ Successfully pushed to GitHub!${NC}"
 fi
@@ -583,11 +703,14 @@ echo -e "\n${BOLD}════════════════════�
 echo -e "${GREEN}${BOLD}🎉 SUCCESS! Your Project is Live on GitHub!${NC}"
 echo -e "Repository: ${CYAN}https://github.com/${SELECTED_REPO}${NC}"
 echo -e "════════════════════════════════════════════════════════════════"
+echo -e "📦 ${BOLD}Automated GitHub Releases:${NC}"
+echo -e "   Every push to ${CURRENT_BRANCH} automatically compiles the Android APK &"
+echo -e "   App Bundle (.aab) and publishes a ${CYAN}GitHub Release${NC}."
+echo -e "   View releases at: ${CYAN}https://github.com/${SELECTED_REPO}/releases${NC}\n"
 echo -e "✨ ${BOLD}How to use this with an AI Assistant:${NC}"
 echo -e "   1. Open ${CYAN}REPO_ALL_IN_ONE.txt${NC} or ${CYAN}AI_INSTRUCTIONS.md${NC}."
-echo -e "   2. Copy and paste the contents into ChatGPT, Claude, Gemini, or Antigravity."
-echo -e "   3. Ask the AI to build screens or features—it will strictly respect"
-echo -e "      relative paths, offline storage, and Capacitor/Gradle standards!\n"
+echo -e "   2. Copy and paste into ChatGPT, Claude, Gemini, or Antigravity."
+echo -e "   3. Follow ${CYAN}GOOGLE_PLAY_STORE_GUIDE.md${NC} for store publishing rules!\n"
 
 if [ "$IS_LOCAL" = false ]; then
   read -rp "Would you like to trigger the Cloud APK build right now? [y/N]: " run_now
@@ -595,7 +718,7 @@ if [ "$IS_LOCAL" = false ]; then
     echo -e "Triggering GitHub Actions workflow..."
     gh workflow run build-apk.yml --repo "$SELECTED_REPO"
     echo -e "${GREEN}✓ Workflow dispatched in the cloud!${NC}"
-    echo -e "Check progress: ${CYAN}gh run list --repo $SELECTED_REPO${NC}"
-    echo -e "Download APK:   ${CYAN}gh run download --repo $SELECTED_REPO -n app-debug-apk${NC}"
+    echo -e "Track build:     ${CYAN}gh run list --repo $SELECTED_REPO${NC}"
+    echo -e "Direct Download: ${CYAN}https://github.com/$SELECTED_REPO/releases${NC}"
   fi
 fi

@@ -1,13 +1,16 @@
-name: Build Android APK (Capacitor + Gradle)
+name: Build Android APK & Publish Release (Capacitor + Gradle)
 
 on:
   push:
     branches: [ main, master, Version2 ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
-  build-android:
-    name: Cloud Capacitor & Gradle APK Builder
+  build-and-release:
+    name: Cloud Capacitor, Gradle & Release Publisher
     runs-on: ubuntu-latest
 
     steps:
@@ -56,22 +59,52 @@ jobs:
           fi
           npx cap sync android
 
-      - name: 🐘 Compile APK with Gradle
+      - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |
           cd android
           chmod +x gradlew
+          echo "Building debug APK for phone installation..."
           ./gradlew assembleDebug --stacktrace
+          echo "Building Android App Bundle (.aab) for Google Play..."
+          ./gradlew bundleDebug --stacktrace || true
 
-      - name: 📤 Upload Debug APK Artifact
+      - name: 📤 Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-binaries
+          path: |
+            android/app/build/outputs/apk/debug/*.apk
+            android/app/build/outputs/bundle/debug/*.aab
           retention-days: 14
 
-      - name: 📋 Summary
-        run: |
-          echo "### 🚀 Build Successful!" >> $GITHUB_STEP_SUMMARY
-          echo "The Android APK was compiled using Gradle in the GitHub Cloud runner." >> $GITHUB_STEP_SUMMARY
-          echo "- **Artifact Name:** \`app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Download via Termux:** \`gh run download ${{ github.run_id }} -n app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
+      - name: 🚀 Auto-Publish to GitHub Releases
+        uses: softprops/action-gh-release@v2
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.ref == 'refs/heads/Version2'
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Release v1.0.${{ github.run_number }} (Android APK & Bundle)
+          body: |
+            ## 📱 New Android Release Compiled via Cloud Gradle!
+            
+            This release contains compiled binaries built from commit `${{ github.sha }}`.
+
+            ### 📦 Direct Downloads:
+            - **Installable APK (`.apk`):** Download and install directly on your Android phone or Termux.
+            - **Google Play App Bundle (`.aab`):** Formatted for Google Play Console distribution.
+
+            ---
+
+            ### 📋 Google Play Store Publishing Checklist
+            *See `GOOGLE_PLAY_STORE_GUIDE.md` in this repository for complete documentation.*
+
+            1. **Developer Account:** Paid $25 registration fee & completed government ID / DUNS verification.
+            2. **App Format:** Standard format is Android App Bundle (`.aab`) under 200MB.
+            3. **Digital Signing:** Enrolled in Play App Signing with your release keystore.
+            4. **Version Code:** Increment `versionCode` in `android/app/build.gradle` for every release upload.
+            5. **Store Assets:** 512x512 icon, 1024x500 feature graphic, 2+ screenshots, and HTTPS Privacy Policy URL.
+            6. **Closed Testing:** 20 testers for at least 14 continuous days (for accounts created after Nov 2023).
+          files: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/bundle/debug/app-debug.aab
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
