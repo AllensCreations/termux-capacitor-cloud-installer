@@ -572,12 +572,7 @@ jobs:
           # 3. Completely remove popup splash icon delay on cold launch
           for splash_file in android/app/src/main/res/drawable/splash.xml android/app/src/main/res/drawable-v24/splash.xml; do
             if [ -f "$splash_file" ]; then
-              cat << 'SPLASH_XML' > "$splash_file"
-<?xml version="1.0" encoding="utf-8"?>
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@color/splashBackground"/>
-</layer-list>
-SPLASH_XML
+              printf '<?xml version="1.0" encoding="utf-8"?>\n<layer-list xmlns:android="http://schemas.android.com/apk/res/android">\n    <item android:drawable="@color/splashBackground"/>\n</layer-list>\n' > "$splash_file"
             fi
           done
           echo "✓ Removed splash popup icon; instant 0ms app launch configured."
