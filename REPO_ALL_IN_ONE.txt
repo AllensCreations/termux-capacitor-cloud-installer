@@ -1,3 +1,788 @@
+================================================================================
+AI SYSTEM & ARCHITECTURE PROMPT:
+Act as an expert mobile developer and project organizer. Review the provided repository files and restructure the project layout into a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Finally, generate a comprehensive, clear README.md and FOLDER_ORGANIZATION.md that explicitly maps out this directory hierarchy and outlines how the automated GitHub Actions workflow compiles the project into an Android APK.
+================================================================================
+
+PROJECT OVERVIEW & DIRECTORY TREE
+Generated: 2026-09-04 08:50:56Z
+Repository Path: /root/termux-capacitor-cloud-installer
+--------------------------------------------------------------------------------
+.
+./README.md
+./REPO_ALL_IN_ONE.txt
+./installer.sh
+./scripts
+./scripts/generate_digest.sh
+./templates
+./templates/AI_INSTRUCTIONS.md
+./templates/FOLDER_ORGANIZATION.md
+./templates/GOOGLE_PLAY_STORE_GUIDE.md
+./templates/MIGRATION_PROMPT.md
+./templates/README.md
+./templates/assets
+./templates/assets/icon.png
+./templates/capacitor.config.json
+./templates/src
+./templates/src/assets
+./templates/src/assets/icon.png
+./templates/src/css
+./templates/src/css/style.css
+./templates/src/index.html
+./templates/src/js
+./templates/src/js/app.js
+
+================================================================================
+CONSOLIDATED SOURCE CODE FILES
+================================================================================
+
+--------------------------------------------------------------------------------
+FILE: templates/capacitor.config.json
+--------------------------------------------------------------------------------
+{
+  "appId": "com.offline.app",
+  "appName": "OfflineApp",
+  "webDir": "src",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 0,
+      "backgroundColor": "#0d1117",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    }
+  }
+}
+
+
+--------------------------------------------------------------------------------
+FILE: templates/FOLDER_ORGANIZATION.md
+--------------------------------------------------------------------------------
+# Project Layout & Architecture Guide (Offline-First Capacitor)
+
+```
+├── assets/                            # 🎨 Source App Icons & Assets
+│   └── icon.png                       # 🖼️ High-Res App Icon (512x512 PNG, auto-generated into all Android densities)
+├── src/                               # 🌐 Web Assets & Application Core (Capacitor webDir)
+│   ├── index.html                     # 🎯 Primary offline entry point
+│   ├── css/                           # 🎨 Styling & stylesheets (style.css)
+│   ├── js/                            # ⚙️ Application logic (app.js)
+│   └── assets/                        # 🖼️ Offline icons, images, fonts (mirrored icon.png)
+│
+├── .github/workflows/
+│   ├── build-apk.yml                  # 🤖 Cloud CI/CD: Gradle APK/AAB build + Auto-Renamer + Releases
+│   ├── deploy-pages.yml               # 🌐 Live Web Preview deployed to GitHub Pages
+│   ├── audit-mobile.yml               # 🛡️ Guard against breaking absolute paths & invalid JSON
+│   └── clean-artifacts.yml            # 🧹 Storage pruner for old GitHub Actions artifacts
+├── capacitor.config.json              # 📱 Capacitor native bridge (0ms instant splash configuration)
+├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
+├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
+├── FOLDER_ORGANIZATION.md             # 📖 Architecture & layout blueprint
+├── README.md                          # 🚀 Project documentation & APK download guide
+└── <REPO_NAME>_ALL_IN_ONE.txt         # 🧠 Consolidated codebase digest with AI prompt (named after repo)
+```
+
+
+---
+
+## 🏗️ Architecture Design Principles
+
+### 1. Dedicated `src/` Web Directory
+- **Offline-First Standard:** All client-side runtime files live inside `src/`.
+- **Entry Point:** `src/index.html` is served locally by the Capacitor WebView with no external web server dependency required.
+- **Dedicated Subfolders:** Stylesheets are strictly grouped in `src/css/` and scripts in `src/js/` to maintain clean separation of concerns.
+
+### 2. Automated Cloud Gradle & GitHub Releases
+- Pushing to `main` compiles both `.apk` and `.aab` bundles using Gradle in GitHub Actions cloud runners.
+- The build automatically publishes a **GitHub Release** (`v1.0.<run_number>`) where anyone can download the compiled APK directly.
+- Read [GOOGLE_PLAY_STORE_GUIDE.md](GOOGLE_PLAY_STORE_GUIDE.md) before publishing to Google Play Console.
+
+
+--------------------------------------------------------------------------------
+FILE: templates/README.md
+--------------------------------------------------------------------------------
+# Mobile Web App (Capacitor + Cloud Gradle Builder)
+
+An offline-first mobile application structured for **Capacitor** with automated **GitHub Actions Gradle APK compilation**.
+
+---
+
+## 🚀 Quick Start & Development
+
+- **Web Source:** All client code lives in `src/`.
+- **Offline Entrypoint:** `src/index.html`
+- **Styles:** `src/css/style.css`
+- **Scripts:** `src/js/app.js`
+
+For full details on the directory hierarchy and architecture decisions, see [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md).
+
+---
+
+## 🤖 Cloud Gradle APK Compilation
+
+You do **not** need to install heavy Android SDKs or Gradle locally. Every push to the repository automatically triggers the GitHub Actions workflow to build the Android APK.
+
+### Trigger Build Manually (Termux or Terminal)
+```bash
+gh workflow run build-apk.yml
+```
+
+### Download the Compiled APK
+```bash
+# List recent build runs
+gh run list --workflow=build-apk.yml
+
+# Download the latest artifact
+gh run download --name app-binaries
+
+# (On Android Termux) Move to your storage
+mv *.apk /sdcard/Download/
+```
+
+- **Custom-Named Binaries:** Releases and APK downloads are automatically named **`<REPO_NAME>-v1.0.<run_number>.apk`** instead of generic `app-debug.apk`.
+- **🌐 Live Web Preview:** Automatically deployed to GitHub Pages on every push.
+
+---
+
+## 🎨 Custom App Icon Placement
+- Place your app icon at: **`assets/icon.png`** (or `icon.png` in root).
+- Recommended size: **`512x512 px`** (PNG format).
+- **Automated Density Generation:** When GitHub Actions runs, it automatically generates all Android launcher icons (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) including round and adaptive foreground variants, plus Web/PWA icons (`src/icon-192.png`, `src/icon-512.png`).
+
+---
+
+## ⚡ Instant App Launch (Zero Splash Screen Delay & 0ms Fast)
+- Pre-configured with **`"launchShowDuration": 0`** and **`"showSpinner": false`** in `capacitor.config.json` and a clean launch drawable.
+- The app opens **immediately and smoothly (0ms)** directly into your interface without any loading icon popup or blocking delay.
+- **Fast Performance Over Animation Bloat:** Smoothness means instant responsiveness, 0ms tap reaction (`touch-action: manipulation`), and zero heavy animation loops that lag low-end phones or Termux.
+
+---
+
+## 🧠 AI Prompt & Codebase Digest
+
+A complete digest of the project with an embedded LLM prompt is available in `<REPO_NAME>_ALL_IN_ONE.txt`. You can pass this file directly into an AI assistant for architecture reviews, feature additions, or debugging.
+
+
+
+--------------------------------------------------------------------------------
+FILE: templates/AI_INSTRUCTIONS.md
+--------------------------------------------------------------------------------
+# 🤖 AI Assistant Guidelines & Development Rules (Capacitor + Cloud Gradle)
+
+> **Feed this file (or `<REPO_NAME>_ALL_IN_ONE.txt` / `<REPO_NAME>_ALL_IN_ONE_FIX.txt`) to ChatGPT, Claude, Gemini, or Antigravity to build features with 100% Capacitor, Gradle & Google Play compatibility.**
+
+---
+
+## 🎯 System Role & Architecture Constraints
+You are an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture.
+
+### 🛑 5 Strict Rules for Capacitor & Gradle Compatibility:
+1. **Relative Paths Exclusively:**
+   - Inside WebView, files load from `https://localhost` or `https://appassets.androidplatform.net`.
+   - Never use absolute root paths (`/css/style.css`, `/js/app.js`).
+   - ALWAYS use relative paths (`css/style.css`, `js/app.js`, `./assets/icon.png`).
+2. **Dedicated `src/` Layout:**
+   - All client files MUST live in `src/` (`src/index.html`, `src/css/`, `src/js/`, `src/assets/`).
+   - `capacitor.config.json` targets `"webDir": "src"`.
+3. **Client-Side Only (No Node.js Runtime):**
+   - The APK runs purely in a mobile WebView.
+   - For backend queries, use `fetch("https://your-api.com/...")` with full HTTPS.
+4. **100% Offline-First Architecture & Remote API Pattern (Never Redirect WebView):**
+   - **All assets bundled locally:** All HTML, JS, CSS, audio, and images MUST be bundled locally inside `src/`. The APK must be 100% operational offline without any internet connection.
+   - **Never Redirect the WebView:** NEVER redirect `window.location` or `window.location.replace` to an external website or hosting URL (e.g. Vercel, Netlify, custom domain). The app must always run from local APK assets.
+   - **Remote Backend Communication:** If the app requires online services, external APIs, or multiplayer, communicate exclusively via asynchronous remote API calls (`fetch()` / `WebSocket`) while keeping the UI running locally.
+   - **Local Storage First, Then Sync:** Persist state, user progress, and mutations locally first (`IndexedDB` / `localStorage`). Queue offline changes and synchronize with the remote server in the background when network connectivity is available (`navigator.onLine`).
+5. **Mobile Viewport & Safe Areas:**
+   - Viewport meta tag: `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">`.
+   - Respect notch insets using `padding-top: env(safe-area-inset-top)`.
+
+---
+
+## ⚡ 0ms Fast & Smooth Performance Standard (No Animation Bloat)
+- **What "Smooth" Means:** "Smoother" does **NOT** mean adding heavy 60fps/120fps physics loops, complex canvas particle engines, or high-overhead transitions that bog down mobile CPU/GPUs and make phones laggy.
+- **Fast & 0ms Responsive Rules:**
+  - **0ms Startup:** Keep `launchShowDuration: 0` in `capacitor.config.json`. Do not insert artificial loading screens, timers, or splash delays.
+  - **0ms Tap Response:** Use `touch-action: manipulation` and `-webkit-tap-highlight-color: transparent` to eliminate the 300ms mobile browser click latency.
+  - **Snappy Transitions:** UI changes and view switches should be instantaneous or use micro-transitions (<= 100ms).
+  - **Zero CPU Hogs:** Avoid non-stop `setInterval` or `requestAnimationFrame` loops when the screen is idle.
+
+---
+
+## 🏷️ Custom Binary Naming Standard (No Generic 'app-debug.apk')
+- Never name compiled releases or APK downloads `app-debug.apk` or `app-debug.aab`.
+- All outputs are packaged and tagged as **`<RepoName>-<Version>.apk`** and **`<RepoName>-<Version>.aab`** (e.g. `<RepoName>-v1.0.12.apk`).
+
+---
+
+## 🏪 Google Play Store Publishing Standards (Important for AI)
+When suggesting version bumps, assets, or packaging, adhere to:
+1. **App Format:** Target Android App Bundle (`.aab`) for production uploads.
+2. **Unique Version Code:** Every store release requires an incrementally higher integer `versionCode` in `android/app/build.gradle`.
+3. **Store Assets:** 
+   - Icon: `512x512 px` (32-bit PNG)
+   - Feature Graphic: `1024x500 px` (JPG or 24-bit PNG)
+   - Minimum 2 phone screenshots
+4. **Closed Testing Rule:** Accounts created after Nov 2023 require at least 20 testers for 14 continuous days before production release.
+5. **Full Guide:** Refer to `GOOGLE_PLAY_STORE_GUIDE.md` for complete technical policy requirements.
+
+---
+
+## 🎨 App Icon Placement & Automated Density Generation
+- **Where to place your icon:** Put your high-resolution icon at `assets/icon.png` (or `icon.png` in root).
+- **Format:** `512x512 px` (or 1024x1024 px) PNG.
+- **Automated Generation:** The cloud build pipeline automatically resizes `assets/icon.png` into all Android launcher mipmap densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) including adaptive foreground and round icons, as well as web PWA icons (`src/icon-192.png`, `src/icon-512.png`).
+- **Instant Launch (Zero Splash Screen Delay & Zero Icon Popup):**
+  - Android 12+ (API 31+) native splash icon popup is suppressed via `@android:color/transparent` animated icon override and transparent launch themes.
+  - Configured with `launchShowDuration: 0` and `showSpinner: false` in `capacitor.config.json` with a solid background. The web app boots smoothly and instantly (0ms) without any splash icon popup.
+
+---
+
+## 🐘 Automated Cloud CI/CD Workflows
+1. **`build-apk.yml`:** Automatically compiles `<RepoName>-<Version>.apk` and `<RepoName>-<Version>.aab` and publishes a GitHub Release.
+2. **`deploy-pages.yml`:** Deploys `src/` to GitHub Pages for instant live web preview.
+3. **`audit-mobile.yml`:** Protects against white blank screens by catching broken absolute paths.
+4. **`clean-artifacts.yml`:** Prunes old build artifacts to save GitHub storage.
+
+
+
+
+--------------------------------------------------------------------------------
+FILE: templates/src/css/style.css
+--------------------------------------------------------------------------------
+:root {
+  --bg-color: #0d1117;
+  --surface-color: #161b22;
+  --border-color: #30363d;
+  --primary-color: #2ea043;
+  --primary-hover: #3fb950;
+  --text-main: #f0f6fc;
+  --text-muted: #8b949e;
+  --danger-color: #f85149;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  justify-content: center;
+}
+
+.app-shell {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 16px;
+}
+
+.app-header {
+  margin-bottom: 24px;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.app-badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: #1f6feb22;
+  color: #58a6ff;
+  border: 1px solid #1f6feb55;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.status-pill {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 12px;
+}
+
+.status-online {
+  background: #23863633;
+  color: #3fb950;
+  border: 1px solid #23863666;
+}
+
+.status-offline {
+  background: #da363333;
+  color: #f85149;
+  border: 1px solid #da363366;
+}
+
+h1 {
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.app-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card {
+  background-color: var(--surface-color);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  padding: 18px;
+}
+
+.card h2 {
+  font-size: 18px;
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.hint {
+  font-size: 13px !important;
+  color: #79c0ff !important;
+  background: #0d419d22;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border-left: 3px solid #1f6feb;
+}
+
+.counter-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-top: 16px;
+}
+
+.counter-display {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--text-main);
+  min-width: 48px;
+  text-align: center;
+}
+
+.btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  border: none;
+  font-size: 22px;
+  font-weight: bold;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.2s, transform 0.1s;
+}
+
+.btn:active {
+  transform: scale(0.95);
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-secondary {
+  background: #21262d;
+  color: white;
+  border: 1px solid var(--border-color);
+}
+
+.app-footer {
+  text-align: center;
+  margin-top: 32px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+code {
+  background: rgba(110, 118, 129, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+
+--------------------------------------------------------------------------------
+FILE: templates/src/js/app.js
+--------------------------------------------------------------------------------
+/**
+ * Offline-First Mobile Application Logic
+ */
+
+document.addEventListener("DOMContentLoaded", () => {
+  initNetworkStatus();
+  initOfflineCounter();
+});
+
+// 1. Connection status monitor
+function initNetworkStatus() {
+  const statusEl = document.getElementById("connection-status");
+  if (!statusEl) return;
+
+  function update() {
+    if (navigator.onLine) {
+      statusEl.textContent = "● Online";
+      statusEl.className = "status-pill status-online";
+    } else {
+      statusEl.textContent = "● Offline (Local Mode)";
+      statusEl.className = "status-pill status-offline";
+    }
+  }
+
+  window.addEventListener("online", update);
+  window.addEventListener("offline", update);
+  update();
+}
+
+// 2. Offline local storage state demo
+function initOfflineCounter() {
+  const display = document.getElementById("counter-value");
+  const btnInc = document.getElementById("btn-increment");
+  const btnDec = document.getElementById("btn-decrement");
+
+  if (!display || !btnInc || !btnDec) return;
+
+  let count = parseInt(localStorage.getItem("offline_counter") || "0", 10);
+  display.textContent = count;
+
+  btnInc.addEventListener("click", () => {
+    count++;
+    localStorage.setItem("offline_counter", count.toString());
+    display.textContent = count;
+  });
+
+  btnDec.addEventListener("click", () => {
+    count--;
+    localStorage.setItem("offline_counter", count.toString());
+    display.textContent = count;
+  });
+}
+
+
+--------------------------------------------------------------------------------
+FILE: templates/src/index.html
+--------------------------------------------------------------------------------
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Offline Mobile App</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-content">
+        <span class="app-badge">Capacitor + Gradle</span>
+        <div id="connection-status" class="status-pill status-offline">● Checking...</div>
+      </div>
+      <h1>Offline-First App</h1>
+      <p class="subtitle">Cloud-Compiled Android APK via GitHub Actions</p>
+    </header>
+
+    <main class="app-main">
+      <section class="card">
+        <h2>💾 Local Offline Storage Demo</h2>
+        <p>This state is saved purely on your device using <code>localStorage</code>.</p>
+        <div class="counter-box">
+          <button id="btn-decrement" class="btn btn-secondary">-</button>
+          <span id="counter-value" class="counter-display">0</span>
+          <button id="btn-increment" class="btn btn-primary">+</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🤖 AI-Assisted Development</h2>
+        <p>Your repository contains <code>AI_INSTRUCTIONS.md</code> and <code>REPO_ALL_IN_ONE.txt</code>.</p>
+        <p class="hint">Feed these files to ChatGPT, Claude, or Gemini to build features adhering to strict Capacitor & Gradle mobile rules.</p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Target Directory: <code>src/</code> • Scheme: <code>https://localhost</code></p>
+    </footer>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
+
+
+--------------------------------------------------------------------------------
+FILE: templates/GOOGLE_PLAY_STORE_GUIDE.md
+--------------------------------------------------------------------------------
+# 📱 Google Play Store Publishing & Technical Requirements Guide
+
+This comprehensive guide outlines all administrative, technical, and policy prerequisites required to publish and maintain an Android app on the Google Play Store.
+
+---
+
+## 1. 🏢 Developer Account Requirements
+
+* **Google Play Developer Account Registration:**
+  * Must register at the [Google Play Console](https://play.google.com/console).
+  * Pay a **one-time registration fee of $25 USD**.
+* **Identity Verification:**
+  * **Individual Accounts:** Government-issued photo ID (passport, driver's license) and address verification.
+  * **Organization/Business Accounts:** Valid **D-U-N-S Number** (Dun & Bradstreet), official organization documentation, and authorized representative verification.
+
+---
+
+## 2. ⚙️ Technical & File Requirements
+
+* **Standard App Format (Android App Bundle - `.aab`):**
+  * Google Play requires new apps to be uploaded as **Android App Bundles (`.aab`)**, not traditional `.apk` files.
+  * Google's dynamic delivery system uses the `.aab` to generate optimized APKs tailored to each user's device configuration (screen density, CPU architecture, language).
+* **Digital Cryptographic Signature:**
+  * The release bundle must be digitally signed with a cryptographic private key.
+  * Command to generate a release keystore:
+    ```bash
+    keytool -genkey -v -keystore release-key.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-app-key
+    ```
+* **Play App Signing:**
+  * Enrollment in **Google Play App Signing** is required.
+  * Google manages and securely protects your app's signing key on its infrastructure and uses it to sign APKs delivered to users.
+* **Target API Level:**
+  * Must target the recent Android API level mandated by Google Play policies (typically Android 14 / API 34+ or higher).
+* **Incrementing Version Code (`versionCode`):**
+  * Every new release uploaded to the Play Console must have a **strictly higher integer `versionCode`** than the previous build (e.g., `1`, `2`, `3`).
+  * In Capacitor/Android, this is configured in `android/app/build.gradle`:
+    ```groovy
+    defaultConfig {
+        versionCode 2
+        versionName "1.0.1"
+    }
+    ```
+* **Download Size Limits:**
+  * The maximum compressed download size for individual APKs generated from bundles is **200 MB**.
+  * Apps requiring larger asset footprints must implement Play Feature Delivery or Play Asset Delivery.
+
+---
+
+## 3. 🎨 Store Listing & Policy Prerequisites
+
+* **Store Listing Assets:**
+  * **App Name:** Up to 30 characters.
+  * **Short Description:** Up to 80 characters.
+  * **Full Description:** Up to 4,000 characters.
+  * **High-Resolution App Icon:** Exactly `512 x 512 px`, 32-bit PNG, up to 1 MB.
+  * **Feature Graphic:** Exactly `1024 x 500 px`, JPG or 24-bit PNG, no transparency.
+  * **Screenshots:** Minimum of 2 phone screenshots (JPEG or 24-bit PNG, minimum 320px, maximum 3840px, 16:9 or 9:16 aspect ratio recommended).
+* **Privacy Policy URL:**
+  * A valid, publicly accessible HTTPS privacy policy URL is mandatory for all apps, especially if accessing device features, storage, or external APIs.
+* **Content Rating & Policy Declarations:**
+  * Complete the IARC Content Rating questionnaire in Play Console.
+  * Submit mandatory declarations:
+    * Target age and audience (COPPA compliance if targeting children under 13).
+    * Ads declaration (indicate if app serves ads).
+    * Data Safety section (disclose what user data is collected, stored, or shared).
+    * Government apps / financial / health declarations (if applicable).
+
+---
+
+## 4. 🧪 Mandatory Closed Testing Requirement (Accounts Created After Nov 2023)
+
+> [!IMPORTANT]
+> If your Google Play Developer Account was created after **November 13, 2023**, Google requires you to run a **Closed Test** before applying for Production access:
+> * **Minimum Testers:** At least **20 testers** must opt-in to your closed test.
+> * **Duration:** Testers must be continuously opted-in for at least **14 consecutive days**.
+> * Only after satisfying this period and gathering tester feedback can you apply for full production release access in Google Play Console.
+
+
+--------------------------------------------------------------------------------
+FILE: templates/MIGRATION_PROMPT.md
+--------------------------------------------------------------------------------
+# 🛠️ AI Codebase Refactoring & Migration Prompt
+
+> **When installing Capacitor into an EXISTING repository, copy and paste the prompt below (or `<REPO_NAME>_ALL_IN_ONE_FIX.txt`) into ChatGPT, Claude, Gemini, or Antigravity to safely adapt your code without breaking it.**
+
+---
+
+```text
+================================================================================
+AI MIGRATION & REFACTORING PROMPT: SAFE CAPACITOR & GRADLE CONVERSION
+================================================================================
+Act as a Senior Principal Mobile Engineer and Codebase Migration Specialist. 
+Review the provided existing repository files below and refactor the project layout into a clean, minimal, and scalable offline-first Capacitor architecture without breaking any existing functionality.
+
+OBJECTIVE:
+Analyze the full source code provided and output a non-destructive migration plan and exact file modifications to achieve 100% compatibility with Capacitor, Gradle APK/AAB builds, and Google Play Store policies.
+
+STRICT CONSTRAINTS & AUDIT RULES:
+1. ZERO BREAKING CHANGES:
+   - Preserve all existing UI, business logic, state handling, routes, and feature behaviors.
+   - Do not delete existing assets or change variable names unless necessary for mobile compatibility.
+
+2. WEB ASSETS RESTRUCTURING (src/):
+   - Group all client-facing web assets into a dedicated `src/` directory (`src/index.html`, `src/css/`, `src/js/`, `src/assets/`).
+   - Ensure `capacitor.config.json` correctly points to `"webDir": "src"`.
+
+3. STRICT RELATIVE PATH CONVERSION (CRITICAL):
+   - In Android WebViews, absolute root paths (e.g. `/style.css`, `/app.js`, `/images/logo.png`) result in blank screens.
+   - Convert all asset and script references in `index.html`, JS, and CSS to strictly relative paths (e.g. `css/style.css`, `js/app.js`, `./assets/logo.png`).
+
+4. FRONTEND / BACKEND DECOUPLING:
+   - Identify any server-side runtime code (Node.js, Express, server.js, Cloudflare workers).
+   - Ensure backend files remain outside of `src/` so they are not bundled into the client APK.
+   - If the frontend communicates with the backend, ensure full HTTPS URLs are used with graceful offline error handling.
+
+5. OFFLINE-FIRST RESILIENCE:
+   - Ensure the app can boot and render cleanly even if the user opens the app while in Airplane mode or without internet.
+   - Use `localStorage` or `IndexedDB` for offline state storage.
+
+6. GOOGLE PLAY & GRADLE READINESS:
+   - Adhere to `GOOGLE_PLAY_STORE_GUIDE.md` (e.g. incremental `versionCode` in build.gradle, Android App Bundle `.aab` format).
+
+OUTPUT FORMAT REQUIRED:
+1. Audit Summary: Detailed list of potential breaking points found (absolute paths, server dependencies, missing offline handlers).
+2. Refactored File Tree: Explicit layout of the restructured repository.
+3. Code Replacements / Unified Diffs: Complete, drop-in replacement code for any modified files with exact filepaths.
+4. Verification Instructions: How to test the refactored code both in a browser and as a compiled Android APK.
+================================================================================
+```
+
+
+--------------------------------------------------------------------------------
+FILE: scripts/generate_digest.sh
+--------------------------------------------------------------------------------
+#!/usr/bin/env bash
+# ==============================================================================
+# generate_digest.sh - Consolidated All-in-One Repo Digest Generator with AI Prompt
+# ==============================================================================
+
+set -euo pipefail
+
+TARGET_DIR="${1:-.}"
+OUTPUT_FILE="${2:-$TARGET_DIR/REPO_ALL_IN_ONE.txt}"
+CUSTOM_PROMPT="${3:-}"
+
+DEFAULT_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and restructure the project layout into a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Finally, generate a comprehensive, clear README.md and FOLDER_ORGANIZATION.md that explicitly maps out this directory hierarchy and outlines how the automated GitHub Actions workflow compiles the project into an Android APK.'
+
+PROMPT="${CUSTOM_PROMPT:-$DEFAULT_PROMPT}"
+
+echo "Generating codebase digest for: $TARGET_DIR"
+echo "Output file: $OUTPUT_FILE"
+
+# Prepare output file
+rm -f "$OUTPUT_FILE"
+
+cat << PROMPT_HEADER > "$OUTPUT_FILE"
+================================================================================
+AI SYSTEM & ARCHITECTURE PROMPT:
+$PROMPT
+================================================================================
+
+PROJECT OVERVIEW & DIRECTORY TREE
+Generated: $(date -u +"%Y-%m-%d %H:%M:%SZ")
+Repository Path: $TARGET_DIR
+--------------------------------------------------------------------------------
+PROMPT_HEADER
+
+# Generate directory tree
+if command -v tree >/dev/null 2>&1; then
+  tree -a -I '.git|node_modules|android|.gradle|.github|build|dist|.wrangler' "$TARGET_DIR" >> "$OUTPUT_FILE"
+else
+  # Fallback to find if tree is not installed
+  (cd "$TARGET_DIR" && find . -maxdepth 4 -not -path '*/.*' -not -path './node_modules*' -not -path './android*' -not -path './.gradle*' | sort) >> "$OUTPUT_FILE"
+fi
+
+cat << SEPARATOR >> "$OUTPUT_FILE"
+
+================================================================================
+CONSOLIDATED SOURCE CODE FILES
+================================================================================
+SEPARATOR
+
+# Find all relevant text files, excluding binaries and heavy folders
+IGNORE_PATTERN="(\.git|\.gradle|android|node_modules|build|dist|\.wrangler|\.idea|\.vscode)"
+BINARY_EXTENSIONS="png|jpg|jpeg|gif|svg|ico|webp|mp3|mp4|apk|aab|keystore|jar|zip|gz|tar|woff|woff2|ttf|eot|pdf"
+
+find "$TARGET_DIR" -type f | while read -r filepath; do
+  relpath="${filepath#$TARGET_DIR/}"
+  
+  # Skip output file itself
+  if [ "$filepath" = "$OUTPUT_FILE" ]; then
+    continue
+  fi
+
+  # Skip ignored directories
+  if echo "$relpath" | grep -qE "$IGNORE_PATTERN"; then
+    continue
+  fi
+
+  # Skip binary file extensions
+  if echo "$relpath" | grep -qiE "\.($BINARY_EXTENSIONS)$"; then
+    continue
+  fi
+
+  # Skip files larger than 1MB
+  filesize=$(wc -c < "$filepath" 2>/dev/null || echo 0)
+  if [ "$filesize" -gt 1048576 ]; then
+    continue
+  fi
+
+  # Check if file is readable text
+  if [ -r "$filepath" ]; then
+    echo "Adding: $relpath"
+    cat << FILE_BLOCK >> "$OUTPUT_FILE"
+
+--------------------------------------------------------------------------------
+FILE: $relpath
+--------------------------------------------------------------------------------
+FILE_BLOCK
+    cat "$filepath" >> "$OUTPUT_FILE"
+    echo "" >> "$OUTPUT_FILE"
+  fi
+done
+
+echo "✅ All-in-One Digest created successfully at: $OUTPUT_FILE"
+
+
+--------------------------------------------------------------------------------
+FILE: installer.sh
+--------------------------------------------------------------------------------
 #!/usr/bin/env bash
 # ==============================================================================
 # Remote Capacitor/Gradle Cloud Workflow Installer for Termux & Linux
@@ -1182,3 +1967,87 @@ if [ "$IS_LOCAL" = false ]; then
     echo -e "Direct Download: ${CYAN}https://github.com/$SELECTED_REPO/releases${NC}"
   fi
 fi
+
+
+--------------------------------------------------------------------------------
+FILE: README.md
+--------------------------------------------------------------------------------
+# ⚡ Termux Capacitor & Cloud Gradle Workflow Installer
+
+A fully automated, remote installer built for **Android Termux** and Linux terminal environments. It provisions a clean GitHub repository into an **offline-first Capacitor application** equipped with an automated **GitHub Actions Cloud Gradle APK/AAB builder**, **automatic GitHub Releases**, a complete **Google Play Store Publishing Guide**, and a single-file codebase digest with an embedded AI prompt.
+
+---
+
+## 🚀 One-Line Termux Quickstart
+
+Run the installer directly inside **Termux** (or any bash terminal) using `curl`:
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/AllensCreations/termux-capacitor-cloud-installer/main/installer.sh)
+```
+
+*(Or clone this repository and run `./installer.sh` locally)*.
+
+---
+
+## 🎯 What the Installer Provides
+
+1. **🌟 Clean New Repo Scaffolding (Recommended):**
+   - Automatically creates and configures a brand new repository on your GitHub account.
+   - Sets up an offline-first mobile app in `src/` (`index.html`, `css/style.css`, `js/app.js`) with responsive dark mode and offline storage.
+2. **🚀 Automatic GitHub Releases with Custom Naming:**
+   - Every push to `main` compiles both an installable **APK (`.apk`)** and a **Google Play Android App Bundle (`.aab`)** via Gradle.
+   - Automatically packages releases with proper naming: **`<RepoName>-<Version>.apk`** (e.g. `MyCoolApp-v1.0.12.apk`), completely eliminating generic `app-debug.apk` naming!
+3. **🌐 Instant Live Web Preview (`deploy-pages.yml`):**
+   - Automatically deploys `src/` to **GitHub Pages** on every push.
+   - Gives you an instant, shareable browser link (`https://<user>.github.io/<repo>/`) to test web features without installing an APK.
+4. **🛡️ Mobile WebView Relative Path Guard (`audit-mobile.yml`):**
+   - Automatically scans commits for breaking absolute root paths (e.g., `/style.css`) that cause the infamous white blank screen on Android WebViews.
+   - Validates JSON config files (`manifest.json`, `capacitor.config.json`).
+5. **🎨 Custom App Icon & Automated Density Generation:**
+   - Place your custom app icon at `assets/icon.png` (or `icon.png` in root).
+   - High-resolution standard: `512x512 px` PNG.
+   - Cloud CI automatically generates all Android launcher densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`, foreground & round adaptive icons) and PWA icons (`icon-192.png`, `icon-512.png`).
+6. **⚡ Instant App Launch (Zero Splash Screen Delay & 0ms Fast):**
+   - Eliminates Capacitor's default 3,000ms delay and loading icon popup.
+   - Configures `"launchShowDuration": 0`, `"launchFadeOutDuration": 0`, and clean launch drawables so your app boots **immediately and smoothly (0ms)** directly into your UI.
+   - **Performance Standard:** "Smooth" means 0ms tap reaction (`touch-action: manipulation`) and instant transitions—not heavy 60fps/120fps animation loops that slow down mobile devices.
+7. **🧹 Actions Storage Quota Cleaner (`clean-artifacts.yml`):**
+   - Automatically prunes build artifacts older than 14 days to prevent exceeding GitHub's 500MB storage limit.
+8. **📱 Google Play Store Publishing Guide (`GOOGLE_PLAY_STORE_GUIDE.md`):**
+   - **Account Requirements:** $25 developer account fee, government ID verification, and D-U-N-S business numbers.
+   - **Technical Rules:** `.aab` bundle requirements, keystore cryptographic signing, Play App Signing, target API level, incremental `versionCode`, and 200MB size limits.
+   - **Store Listing & Policy:** 512x512 icon, 1024x500 feature graphic, screenshots, privacy policy URL, and content ratings.
+   - **Closed Testing:** 20 testers for 14 continuous days (for accounts created after Nov 2023).
+9. **🤖 AI Assistant Instructions (`AI_INSTRUCTIONS.md`):**
+   - Details the strict rules for mobile WebView compatibility (relative paths, `src/` layout, offline storage, safe areas, icon rules).
+   - Feed `AI_INSTRUCTIONS.md` or `REPO_ALL_IN_ONE.txt` to ChatGPT, Claude, Gemini, or Antigravity to build app features safely.
+10. **🐘 Zero-Setup Cloud Gradle CI (`build-apk.yml`):**
+   - Configured with **Java JDK 21 (Temurin)** matching modern Capacitor 6/7 requirements.
+   - Built-in **Kotlin duplicate class constraint resolution** (`kotlin-stdlib-jdk8:1.8.22`).
+   - Intelligent **dual-path CSS and web asset staging** (`style.css` and `css/style.css`, ES modules, service workers).
+   - Builds run 100% in GitHub Actions cloud runners, keeping your device clean of gigabytes of SDKs.
+
+---
+
+## 📲 Downloading Your Release Binaries
+
+### Option 1: Direct Browser Download
+Go to your repository's **Releases** tab:
+```
+https://github.com/<YOUR_USER>/<REPO>/releases
+```
+Click on `<REPO_NAME>-v1.0.<run_number>.apk` to download directly to your phone.
+
+### Option 2: Termux CLI Download
+```bash
+# Check workflow runs
+gh run list --workflow=build-apk.yml
+
+# Download artifact via gh CLI
+gh run download -n app-binaries
+
+# Move APK to your phone storage
+mv app-debug.apk /sdcard/Download/
+```
+

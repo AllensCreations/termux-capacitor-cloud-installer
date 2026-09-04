@@ -18,9 +18,11 @@ You are an expert mobile developer and project organizer. Review the provided re
 3. **Client-Side Only (No Node.js Runtime):**
    - The APK runs purely in a mobile WebView.
    - For backend queries, use `fetch("https://your-api.com/...")` with full HTTPS.
-4. **Offline-First Persistence:**
-   - App must boot without an internet connection.
-   - Use `localStorage` or `IndexedDB` for local state persistence.
+4. **100% Offline-First Architecture & Remote API Pattern (Never Redirect WebView):**
+   - **All assets bundled locally:** All HTML, JS, CSS, audio, and images MUST be bundled locally inside `src/`. The APK must be 100% operational offline without any internet connection.
+   - **Never Redirect the WebView:** NEVER redirect `window.location` or `window.location.replace` to an external website or hosting URL (e.g. Vercel, Netlify, custom domain). The app must always run from local APK assets.
+   - **Remote Backend Communication:** If the app requires online services, external APIs, or multiplayer, communicate exclusively via asynchronous remote API calls (`fetch()` / `WebSocket`) while keeping the UI running locally.
+   - **Local Storage First, Then Sync:** Persist state, user progress, and mutations locally first (`IndexedDB` / `localStorage`). Queue offline changes and synchronize with the remote server in the background when network connectivity is available (`navigator.onLine`).
 5. **Mobile Viewport & Safe Areas:**
    - Viewport meta tag: `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">`.
    - Respect notch insets using `padding-top: env(safe-area-inset-top)`.
@@ -60,8 +62,9 @@ When suggesting version bumps, assets, or packaging, adhere to:
 - **Where to place your icon:** Put your high-resolution icon at `assets/icon.png` (or `icon.png` in root).
 - **Format:** `512x512 px` (or 1024x1024 px) PNG.
 - **Automated Generation:** The cloud build pipeline automatically resizes `assets/icon.png` into all Android launcher mipmap densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) including adaptive foreground and round icons, as well as web PWA icons (`src/icon-192.png`, `src/icon-512.png`).
-- **Instant Launch (Zero Splash Screen Delay):**
-  - Configured with `launchShowDuration: 0` and `showSpinner: false` in `capacitor.config.json` with a clean launch drawable. The web app boots smoothly and instantly (0ms).
+- **Instant Launch (Zero Splash Screen Delay & Zero Icon Popup):**
+  - Android 12+ (API 31+) native splash icon popup is suppressed via `@android:color/transparent` animated icon override and transparent launch themes.
+  - Configured with `launchShowDuration: 0` and `showSpinner: false` in `capacitor.config.json` with a solid background. The web app boots smoothly and instantly (0ms) without any splash icon popup.
 
 ---
 
