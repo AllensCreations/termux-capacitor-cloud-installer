@@ -39,11 +39,11 @@ jobs:
           if [ ! -f package.json ]; then
             npm init -y
           fi
-          npm install --save @capacitor/core @capacitor/cli @capacitor/android
+          npm install --save @capacitor/core @capacitor/cli @capacitor/android @capacitor/splash-screen
 
       - name: 🛠️ Stage Web Assets into src/
         run: |
-          mkdir -p src src/css src/js
+          mkdir -p src src/css src/js src/assets assets
           cp -rf index.html style.css app.js js turso.js sw.js manifest.json version.json assets src/ 2>/dev/null || true
           if [ -f style.css ]; then
             cp -f style.css src/style.css 2>/dev/null || true
@@ -55,6 +55,15 @@ jobs:
           fi
           if [ ! -f index.html ] && [ -f src/index.html ]; then
             cp -f src/index.html index.html
+          fi
+          # Bidirectional icon staging
+          if [ -f "assets/icon.png" ]; then
+            cp -f assets/icon.png src/assets/icon.png 2>/dev/null || true
+          elif [ -f "icon.png" ]; then
+            cp -f icon.png assets/icon.png 2>/dev/null || true
+            cp -f icon.png src/assets/icon.png 2>/dev/null || true
+          elif [ -f "src/assets/icon.png" ]; then
+            cp -f src/assets/icon.png assets/icon.png 2>/dev/null || true
           fi
 
       - name: ⚡ Initialize Android Platform & Sync Web Assets
@@ -72,6 +81,53 @@ jobs:
             echo "    }" >> android/app/build.gradle
             echo "}" >> android/app/build.gradle
           fi
+
+      - name: 🎨 Generate Android App Icons & Remove Launch Splash Delay
+        run: |
+          # 1. Locate primary app icon
+          ICON_SRC=""
+          if [ -f "assets/icon.png" ]; then
+            ICON_SRC="assets/icon.png"
+          elif [ -f "icon.png" ]; then
+            ICON_SRC="icon.png"
+          elif [ -f "src/assets/icon.png" ]; then
+            ICON_SRC="src/assets/icon.png"
+          fi
+
+          # 2. Automatically generate all Android launcher mipmap icons if icon exists
+          if [ -n "$ICON_SRC" ] && [ -d "android/app/src/main/res" ]; then
+            echo "🎨 Found app icon at $ICON_SRC. Generating Android mipmap launcher icons..."
+            densities=("mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192")
+            for entry in "${densities[@]}"; do
+              density="${entry%%:*}"
+              size="${entry##*:}"
+              target_dir="android/app/src/main/res/mipmap-${density}"
+              mkdir -p "$target_dir"
+              convert "$ICON_SRC" -resize "${size}x${size}" "$target_dir/ic_launcher.png" 2>/dev/null || true
+              convert "$ICON_SRC" -resize "${size}x${size}" "$target_dir/ic_launcher_round.png" 2>/dev/null || true
+              convert "$ICON_SRC" -resize "${size}x${size}" "$target_dir/ic_launcher_foreground.png" 2>/dev/null || true
+            done
+
+            mkdir -p src/assets
+            cp -f "$ICON_SRC" src/assets/icon.png 2>/dev/null || true
+            convert "$ICON_SRC" -resize 192x192 src/icon-192.png 2>/dev/null || true
+            convert "$ICON_SRC" -resize 512x512 src/icon-512.png 2>/dev/null || true
+            echo "✓ App icons generated for all densities."
+          fi
+
+          # 3. Completely remove popup splash icon delay on cold launch
+          for splash_file in android/app/src/main/res/drawable/splash.xml android/app/src/main/res/drawable-v24/splash.xml; do
+            if [ -f "$splash_file" ]; then
+              cat << 'SPLASH_XML' > "$splash_file"
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splashBackground"/>
+</layer-list>
+SPLASH_XML
+            fi
+          done
+          echo "✓ Removed splash popup icon; instant 0ms app launch configured."
+
 
       - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |

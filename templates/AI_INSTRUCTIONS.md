@@ -40,10 +40,22 @@ When suggesting version bumps, assets, or packaging, adhere to:
 
 ---
 
+## 🎨 App Icon Placement & Automated Density Generation
+- **Where to place your icon:** Put your high-resolution icon at `assets/icon.png` (or `icon.png` in root).
+- **Format:** `512x512 px` (or 1024x1024 px) PNG.
+- **Automated Generation:** The cloud build pipeline automatically resizes `assets/icon.png` into all Android launcher mipmap densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) including adaptive foreground and round icons, as well as web PWA icons (`src/icon-192.png`, `src/icon-512.png`).
+- **Instant Launch (Zero Splash Screen Delay):**
+  - Capacitor defaults to a 3-second delay with a popup icon. This has been disabled via `plugins.SplashScreen` in `capacitor.config.json` (`launchShowDuration: 0`, `launchAutoHide: true`, `showSpinner: false`).
+  - Do NOT re-introduce artificial delays, startup popups, or blocking spinners in `index.html` or `capacitor.config.json`. The web app must boot smoothly and instantly (0ms) upon launch.
+
+---
+
 ## 🐘 Automated Cloud Gradle Build & GitHub Release Pipeline
 The GitHub Actions workflow `.github/workflows/build-apk.yml`:
 1. Pulls the latest code, installs Capacitor, and runs `npx cap sync android`.
-2. Compiles:
+2. Generates all Android launcher icon densities from `assets/icon.png` and eliminates splash delay.
+3. Compiles:
    - **`app-debug.apk`**: Direct download for instant testing on Android devices.
    - **`app-debug.aab`**: Android App Bundle for Google Play Console.
-3. **Automatically publishes a GitHub Release** tagged `v1.0.<run_number>` with direct download links attached!
+4. **Automatically publishes a GitHub Release** tagged `v1.0.<run_number>` with direct download links attached!
+

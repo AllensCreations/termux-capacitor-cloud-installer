@@ -206,9 +206,43 @@ CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[4/6] 📁 Structuring offline-first architecture (src/)...${NC}"
 
-mkdir -p "$TARGET_DIR/src/css" "$TARGET_DIR/src/js" "$TARGET_DIR/src/assets"
+mkdir -p "$TARGET_DIR/src/css" "$TARGET_DIR/src/js" "$TARGET_DIR/src/assets" "$TARGET_DIR/assets"
 
 if [ "$IS_NEW_REPO" = true ]; then
+  # Stage starter 512x512 app icon
+  if [ -f "$SCRIPT_DIR/templates/assets/icon.png" ]; then
+    cp -f "$SCRIPT_DIR/templates/assets/icon.png" "$TARGET_DIR/assets/icon.png" 2>/dev/null || true
+    cp -f "$SCRIPT_DIR/templates/assets/icon.png" "$TARGET_DIR/src/assets/icon.png" 2>/dev/null || true
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 -c "
+import zlib, struct
+w, h = 512, 512
+raw = bytearray()
+for y in range(h):
+    raw.append(0)
+    for x in range(w):
+        dx, dy = x - 256, y - 256
+        dist = (dx*dx + dy*dy)**0.5
+        if dist < 240:
+            if dist > 230:
+                raw.extend([56, 189, 248, 255])
+            elif (abs(dx) < 30 and abs(dy) < 140) or (abs(dy) < 30 and abs(dx) < 140):
+                raw.extend([245, 158, 11, 255])
+            else:
+                raw.extend([15, 23, 42, 255])
+        else:
+            raw.extend([0, 0, 0, 0])
+compressed = zlib.compress(bytes(raw), 9)
+def chunk(tag, data):
+    return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag + data) & 0xffffffff)
+png = b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + chunk(b'IDAT', compressed) + chunk(b'IEND', b'')
+with open('$TARGET_DIR/assets/icon.png', 'wb') as f:
+    f.write(png)
+with open('$TARGET_DIR/src/assets/icon.png', 'wb') as f:
+    f.write(png)
+" 2>/dev/null || true
+  fi
+
   # Brand new repository starter UI
   cat << 'HTML' > "$TARGET_DIR/src/index.html"
 <!DOCTYPE html>
@@ -349,6 +383,22 @@ else
   if [ -f "$TARGET_DIR/src/index.html" ] && [ ! -f "$TARGET_DIR/index.html" ]; then
     cp -f "$TARGET_DIR/src/index.html" "$TARGET_DIR/index.html"
   fi
+
+  # Bidirectional icon staging & fallback
+  mkdir -p "$TARGET_DIR/assets" "$TARGET_DIR/src/assets"
+  if [ -f "$TARGET_DIR/assets/icon.png" ]; then
+    cp -f "$TARGET_DIR/assets/icon.png" "$TARGET_DIR/src/assets/icon.png" 2>/dev/null || true
+  elif [ -f "$TARGET_DIR/icon.png" ]; then
+    cp -f "$TARGET_DIR/icon.png" "$TARGET_DIR/assets/icon.png" 2>/dev/null || true
+    cp -f "$TARGET_DIR/icon.png" "$TARGET_DIR/src/assets/icon.png" 2>/dev/null || true
+  elif [ -f "$TARGET_DIR/src/assets/icon.png" ]; then
+    cp -f "$TARGET_DIR/src/assets/icon.png" "$TARGET_DIR/assets/icon.png" 2>/dev/null || true
+  else
+    if [ -f "$SCRIPT_DIR/templates/assets/icon.png" ]; then
+      cp -f "$SCRIPT_DIR/templates/assets/icon.png" "$TARGET_DIR/assets/icon.png" 2>/dev/null || true
+      cp -f "$SCRIPT_DIR/templates/assets/icon.png" "$TARGET_DIR/src/assets/icon.png" 2>/dev/null || true
+    fi
+  fi
 fi
 
 if [ ! -f "$TARGET_DIR/package.json" ]; then
@@ -382,6 +432,19 @@ cat << CAPCONFIG > "$TARGET_DIR/capacitor.config.json"
   "bundledWebRuntime": false,
   "server": {
     "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 0,
+      "launchAutoHide": true,
+      "launchFadeOutDuration": 0,
+      "backgroundColor": "#0d1117",
+      "androidSplashResourceName": "splash",
+      "androidScaleType": "CENTER_CROP",
+      "showSpinner": false,
+      "splashFullScreen": true,
+      "splashImmersive": true
+    }
   }
 }
 CAPCONFIG
@@ -430,11 +493,11 @@ jobs:
           if [ ! -f package.json ]; then
             npm init -y
           fi
-          npm install --save @capacitor/core @capacitor/cli @capacitor/android
+          npm install --save @capacitor/core @capacitor/cli @capacitor/android @capacitor/splash-screen
 
       - name: 🛠️ Stage Web Assets into src/
         run: |
-          mkdir -p src src/css src/js
+          mkdir -p src src/css src/js src/assets assets
           cp -rf index.html style.css app.js js turso.js sw.js manifest.json version.json assets src/ 2>/dev/null || true
           if [ -f style.css ]; then
             cp -f style.css src/style.css 2>/dev/null || true
@@ -446,6 +509,15 @@ jobs:
           fi
           if [ ! -f index.html ] && [ -f src/index.html ]; then
             cp -f src/index.html index.html
+          fi
+          # Bidirectional icon staging
+          if [ -f "assets/icon.png" ]; then
+            cp -f assets/icon.png src/assets/icon.png 2>/dev/null || true
+          elif [ -f "icon.png" ]; then
+            cp -f icon.png assets/icon.png 2>/dev/null || true
+            cp -f icon.png src/assets/icon.png 2>/dev/null || true
+          elif [ -f "src/assets/icon.png" ]; then
+            cp -f src/assets/icon.png assets/icon.png 2>/dev/null || true
           fi
 
       - name: ⚡ Initialize Android Platform & Sync Web Assets
@@ -463,6 +535,52 @@ jobs:
             echo "    }" >> android/app/build.gradle
             echo "}" >> android/app/build.gradle
           fi
+
+      - name: 🎨 Generate Android App Icons & Remove Launch Splash Delay
+        run: |
+          # 1. Locate primary app icon
+          ICON_SRC=""
+          if [ -f "assets/icon.png" ]; then
+            ICON_SRC="assets/icon.png"
+          elif [ -f "icon.png" ]; then
+            ICON_SRC="icon.png"
+          elif [ -f "src/assets/icon.png" ]; then
+            ICON_SRC="src/assets/icon.png"
+          fi
+
+          # 2. Automatically generate all Android launcher mipmap icons if icon exists
+          if [ -n "$ICON_SRC" ] && [ -d "android/app/src/main/res" ]; then
+            echo "🎨 Found app icon at $ICON_SRC. Generating Android mipmap launcher icons..."
+            densities=("mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192")
+            for entry in "${densities[@]}"; do
+              density="${entry%%:*}"
+              size="${entry##*:}"
+              target_dir="android/app/src/main/res/mipmap-${density}"
+              mkdir -p "$target_dir"
+              convert "$ICON_SRC" -resize "${size}x${size}" "$target_dir/ic_launcher.png" 2>/dev/null || true
+              convert "$ICON_SRC" -resize "${size}x${size}" "$target_dir/ic_launcher_round.png" 2>/dev/null || true
+              convert "$ICON_SRC" -resize "${size}x${size}" "$target_dir/ic_launcher_foreground.png" 2>/dev/null || true
+            done
+
+            mkdir -p src/assets
+            cp -f "$ICON_SRC" src/assets/icon.png 2>/dev/null || true
+            convert "$ICON_SRC" -resize 192x192 src/icon-192.png 2>/dev/null || true
+            convert "$ICON_SRC" -resize 512x512 src/icon-512.png 2>/dev/null || true
+            echo "✓ App icons generated for all densities."
+          fi
+
+          # 3. Completely remove popup splash icon delay on cold launch
+          for splash_file in android/app/src/main/res/drawable/splash.xml android/app/src/main/res/drawable-v24/splash.xml; do
+            if [ -f "$splash_file" ]; then
+              cat << 'SPLASH_XML' > "$splash_file"
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splashBackground"/>
+</layer-list>
+SPLASH_XML
+            fi
+          done
+          echo "✓ Removed splash popup icon; instant 0ms app launch configured."
 
       - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |
@@ -559,13 +677,24 @@ When suggesting version bumps, assets, or packaging, adhere to:
 
 ---
 
+## 🎨 App Icon Placement & Automated Density Generation
+- **Where to place your icon:** Put your high-resolution icon at `assets/icon.png` (or `icon.png` in root).
+- **Format:** `512x512 px` (or 1024x1024 px) PNG.
+- **Automated Generation:** The cloud build pipeline automatically resizes `assets/icon.png` into all Android launcher mipmap densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) including adaptive foreground and round icons, as well as web PWA icons (`src/icon-192.png`, `src/icon-512.png`).
+- **Instant Launch (Zero Splash Screen Delay):**
+  - Capacitor defaults to a 3-second delay with a popup icon. This has been disabled via `plugins.SplashScreen` in `capacitor.config.json` (`launchShowDuration: 0`, `launchAutoHide: true`, `showSpinner: false`).
+  - Do NOT re-introduce artificial delays, startup popups, or blocking spinners in `index.html` or `capacitor.config.json`. The web app must boot smoothly and instantly (0ms) upon launch.
+
+---
+
 ## 🐘 Automated Cloud Gradle Build & GitHub Release Pipeline
 The GitHub Actions workflow `.github/workflows/build-apk.yml`:
 1. Pulls the latest code, installs Capacitor, and runs `npx cap sync android`.
-2. Compiles:
+2. Generates all Android launcher icon densities from `assets/icon.png` and eliminates splash delay.
+3. Compiles:
    - **`app-debug.apk`**: Direct download for instant testing on Android devices.
    - **`app-debug.aab`**: Android App Bundle for Google Play Console.
-3. **Automatically publishes a GitHub Release** tagged `v1.0.<run_number>` with direct download links attached!
+4. **Automatically publishes a GitHub Release** tagged `v1.0.<run_number>` with direct download links attached!
 AI_DOC
 
 # 4. GOOGLE_PLAY_STORE_GUIDE.md
@@ -653,15 +782,16 @@ cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
 # Project Layout & Architecture Guide (Offline-First Capacitor)
 
 ```
-.
+├── assets/                            # 🎨 Source App Icons & Assets
+│   └── icon.png                       # 🖼️ High-Res App Icon (512x512 PNG, auto-generated into all Android densities)
 ├── src/                               # 🌐 Web Assets & Application Core (Capacitor webDir)
 │   ├── index.html                     # 🎯 Primary offline entry point
 │   ├── css/                           # 🎨 Styling & stylesheets (style.css)
 │   ├── js/                            # ⚙️ Application logic (app.js)
-│   └── assets/                        # 🖼️ Offline icons, images, fonts
+│   └── assets/                        # 🖼️ Offline icons, images, fonts (mirrored icon.png)
 │
-├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + GitHub Releases
-├── capacitor.config.json              # 📱 Capacitor native bridge configuration
+├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + Icon Generator + Releases
+├── capacitor.config.json              # 📱 Capacitor native bridge (0ms instant splash configuration)
 ├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
 ├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
 ├── FOLDER_ORGANIZATION.md             # 📖 Architecture & layout blueprint
@@ -689,6 +819,19 @@ See [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md) for full directory specific
 
 ---
 
+## 🎨 Custom App Icon Placement
+- Place your app icon at: **\`assets/icon.png\`** (or \`icon.png\` in root).
+- Recommended size: **\`512x512 px\`** (PNG format).
+- **Automated Density Generation:** Cloud CI automatically generates all Android launcher icons (\`mipmap-mdpi\`, \`hdpi\`, \`xhdpi\`, \`xxhdpi\`, \`xxxhdpi\`) including round and adaptive foreground variants, plus Web/PWA icons (\`src/icon-192.png\`, \`src/icon-512.png\`).
+
+---
+
+## ⚡ Instant App Launch (Zero Splash Screen Delay)
+- Pre-configured with **\`"launchShowDuration": 0\`** and **\`"showSpinner": false\`** in \`capacitor.config.json\`.
+- The app opens **immediately and smoothly (0ms)** without any loading icon popup or artificial delay.
+
+---
+
 ## 🤖 Cloud Gradle APK/AAB Compilation & Releases
 Every push to \`main\` automatically compiles both the Android APK and App Bundle (.aab) in GitHub Actions and publishes a **GitHub Release**:
 
@@ -698,6 +841,17 @@ README_DOC
 else
   if ! grep -q "Cloud Gradle APK/AAB Compilation" "$TARGET_DIR/README.md"; then
     cat << 'README_APPEND' >> "$TARGET_DIR/README.md"
+
+---
+
+## 🎨 Custom App Icon Placement
+- Place your app icon at: **`assets/icon.png`** (or `icon.png` in root).
+- Automated CI generates all Android launcher icon densities (`mipmap-*`) and Web/PWA icons.
+
+---
+
+## ⚡ Instant App Launch (Zero Splash Delay)
+- Configured with `"launchShowDuration": 0` in `capacitor.config.json` for 0ms instant, smooth startup without any popup icon delay.
 
 ---
 

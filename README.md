@@ -24,19 +24,27 @@ bash <(curl -fsSL https://raw.githubusercontent.com/AllensCreations/termux-capac
 2. **🚀 Automatic GitHub Releases:**
    - Every push to `main` compiles both an installable **Debug APK (`.apk`)** and a **Google Play Android App Bundle (`.aab`)** via Gradle.
    - Automatically publishes a **GitHub Release** tagged `v1.0.<run_number>` with direct binary download links!
-3. **📱 Google Play Store Publishing Guide (`GOOGLE_PLAY_STORE_GUIDE.md`):**
+3. **🎨 Custom App Icon & Automated Density Generation:**
+   - Place your custom app icon at `assets/icon.png` (or `icon.png` in root).
+   - High-resolution standard: `512x512 px` PNG.
+   - Cloud CI automatically generates all Android launcher densities (`mipmap-mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`, foreground & round adaptive icons) and PWA icons (`icon-192.png`, `icon-512.png`).
+4. **⚡ Instant App Launch (Zero Splash Screen Delay):**
+   - Eliminates Capacitor's default 3,000ms delay and loading icon popup.
+   - Configures `"launchShowDuration": 0`, `"launchFadeOutDuration": 0`, and clean launch drawables so your app boots **immediately and smoothly (0ms)** directly into your UI.
+5. **📱 Google Play Store Publishing Guide (`GOOGLE_PLAY_STORE_GUIDE.md`):**
    - **Account Requirements:** $25 developer account fee, government ID verification, and D-U-N-S business numbers.
    - **Technical Rules:** `.aab` bundle requirements, keystore cryptographic signing, Play App Signing, target API level, incremental `versionCode`, and 200MB size limits.
    - **Store Listing & Policy:** 512x512 icon, 1024x500 feature graphic, screenshots, privacy policy URL, and content ratings.
    - **Closed Testing:** 20 testers for 14 continuous days (for accounts created after Nov 2023).
-4. **🤖 AI Assistant Instructions (`AI_INSTRUCTIONS.md`):**
-   - Details the 5 strict rules for mobile WebView compatibility (relative paths, `src/` layout, offline storage, safe areas).
+6. **🤖 AI Assistant Instructions (`AI_INSTRUCTIONS.md`):**
+   - Details the strict rules for mobile WebView compatibility (relative paths, `src/` layout, offline storage, safe areas, icon rules).
    - Feed `AI_INSTRUCTIONS.md` or `REPO_ALL_IN_ONE.txt` to ChatGPT, Claude, Gemini, or Antigravity to build app features safely.
-5. **🐘 Zero-Setup Cloud Gradle CI (`build-apk.yml`):**
+7. **🐘 Zero-Setup Cloud Gradle CI (`build-apk.yml`):**
    - Configured with **Java JDK 21 (Temurin)** matching modern Capacitor 6/7 requirements.
    - Built-in **Kotlin duplicate class constraint resolution** (`kotlin-stdlib-jdk8:1.8.22`).
    - Intelligent **dual-path CSS and web asset staging** (`style.css` and `css/style.css`, ES modules, service workers).
    - Builds run 100% in GitHub Actions cloud runners, keeping your device clean of gigabytes of SDKs.
+
 
 ---
 

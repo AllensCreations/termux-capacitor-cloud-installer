@@ -1,21 +1,23 @@
 # Project Layout & Architecture Guide (Offline-First Capacitor)
 
 ```
-.
+├── assets/                            # 🎨 Source App Icons & Assets
+│   └── icon.png                       # 🖼️ High-Res App Icon (512x512 PNG, auto-generated into all Android densities)
 ├── src/                               # 🌐 Web Assets & Application Core (Capacitor webDir)
 │   ├── index.html                     # 🎯 Primary offline entry point
 │   ├── css/                           # 🎨 Styling & stylesheets (style.css)
 │   ├── js/                            # ⚙️ Application logic (app.js)
-│   └── assets/                        # 🖼️ Offline icons, images, fonts
+│   └── assets/                        # 🖼️ Offline icons, images, fonts (mirrored icon.png)
 │
-├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + GitHub Releases
-├── capacitor.config.json              # 📱 Capacitor native bridge configuration
+├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Gradle APK/AAB build + Icon Generator + Releases
+├── capacitor.config.json              # 📱 Capacitor native bridge (0ms instant splash configuration)
 ├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
 ├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
 ├── FOLDER_ORGANIZATION.md             # 📖 Architecture & layout blueprint
 ├── README.md                          # 🚀 Project documentation & APK download guide
 └── <REPO_NAME>_ALL_IN_ONE.txt         # 🧠 Consolidated codebase digest with AI prompt (named after repo)
 ```
+
 
 ---
 
