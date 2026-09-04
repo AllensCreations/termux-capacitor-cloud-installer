@@ -667,6 +667,7 @@ concurrency:
 jobs:
   deploy-pages:
     name: 🌐 Deploy src/ to GitHub Pages
+    if: ${{ !github.event.repository.private }}
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
