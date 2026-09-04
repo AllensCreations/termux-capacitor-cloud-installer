@@ -571,11 +571,26 @@ jobs:
 
           # 3. Completely eliminate splash icon across all Android versions (including Android 12+ API 31)
           if [ -d "android/app/src/main/res" ]; then
-            mkdir -p android/app/src/main/res/values-v31
-            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">\n        <item name="android:background">@color/splashBackground</item>\n        <item name="android:windowSplashScreenBackground">@color/splashBackground</item>\n        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>\n        <item name="android:windowSplashScreenAnimationDuration">0</item>\n    </style>\n</resources>\n' > android/app/src/main/res/values-v31/styles.xml
-
             mkdir -p android/app/src/main/res/values
-            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">\n        <item name="windowActionBar">false</item>\n        <item name="windowNoTitle">true</item>\n        <item name="android:background">@color/splashBackground</item>\n    </style>\n    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme.NoActionBar">\n        <item name="android:background">@color/splashBackground</item>\n    </style>\n</resources>\n' > android/app/src/main/res/values/styles.xml
+            mkdir -p android/app/src/main/res/values-v31
+            mkdir -p android/app/src/main/res/drawable
+
+            # Ensure splashBackground color is defined in colors.xml
+            if [ -f "android/app/src/main/res/values/colors.xml" ]; then
+              if ! grep -q "splashBackground" android/app/src/main/res/values/colors.xml; then
+                sed -i 's|</resources>|    <color name="splashBackground">#0d1117</color>\n</resources>|' android/app/src/main/res/values/colors.xml
+              fi
+            else
+              printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="colorPrimary">#6200EE</color>\n    <color name="colorPrimaryDark">#3700B3</color>\n    <color name="colorAccent">#03DAC5</color>\n    <color name="splashBackground">#0d1117</color>\n</resources>\n' > android/app/src/main/res/values/colors.xml
+            fi
+
+            # Android 12+ (API 31+) splash screen overrides: transparent animated icon + 0 duration
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme">\n        <item name="android:background">@color/splashBackground</item>\n        <item name="android:windowSplashScreenBackground">@color/splashBackground</item>\n        <item name="android:windowSplashScreenAnimatedIcon">@android:color/transparent</item>\n        <item name="android:windowSplashScreenAnimationDuration">0</item>\n    </style>\n</resources>\n' > android/app/src/main/res/values-v31/styles.xml
+
+            # Universal theme: clean launch style without icon
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <style name="AppTheme" parent="Theme.AppCompat.DayNight.NoActionBar">\n        <item name="windowActionBar">false</item>\n        <item name="windowNoTitle">true</item>\n        <item name="android:background">@color/splashBackground</item>\n    </style>\n    <style name="AppTheme.NoActionBarLaunch" parent="AppTheme">\n        <item name="android:background">@color/splashBackground</item>\n    </style>\n</resources>\n' > android/app/src/main/res/values/styles.xml
+
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<layer-list xmlns:android="http://schemas.android.com/apk/res/android">\n    <item android:drawable="@color/splashBackground"/>\n</layer-list>\n' > android/app/src/main/res/drawable/splash.xml
 
             for splash_file in $(find android/app/src/main/res/ -name "splash.xml" 2>/dev/null); do
               printf '<?xml version="1.0" encoding="utf-8"?>\n<layer-list xmlns:android="http://schemas.android.com/apk/res/android">\n    <item android:drawable="@color/splashBackground"/>\n</layer-list>\n' > "$splash_file"
