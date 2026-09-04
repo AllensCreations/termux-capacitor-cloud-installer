@@ -82,15 +82,15 @@ gh_user=$(gh api user -q .login 2>/dev/null || echo "user")
 echo -e "      ${GREEN}✓ Logged in as:${NC} ${BOLD}${gh_user}${NC}"
 
 # ------------------------------------------------------------------------------
-# Step 3: Action Selection (New Repo Recommended)
+# Step 3: Action Selection
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[3/6] 🎯 Choose Setup Mode:${NC}\n"
 echo -e "  ${GREEN}${BOLD}[1] 🌟 Create a Brand New Clean Repository (Recommended)${NC}"
 echo -e "      Scaffolds pristine offline-first app, AI instructions, Google Play guide, and Cloud Gradle CI."
-echo -e "  ${CYAN}[2] 📂 Select an Existing Repository from GitHub${NC}"
-echo -e "      Injects Capacitor, Google Play docs & Gradle CI into an existing repo."
-echo -e "  ${YELLOW}[3] 💻 Use an Existing Local Folder${NC}"
-echo -e "      Configures a folder already on your device."
+echo -e "  ${CYAN}[2] 📂 Configure an Existing Repository from GitHub${NC}"
+echo -e "      Injects Capacitor, Cloud Gradle CI, and generates an AI Migration & Fix Digest to avoid breaking."
+echo -e "  ${YELLOW}[3] 💻 Configure an Existing Local Folder${NC}"
+echo -e "      Configures a local folder and generates a safe AI Migration Digest."
 
 echo ""
 read -rp "Enter choice [1, 2, or 3] (Default: 1): " mode_choice
@@ -168,13 +168,14 @@ CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
 [ -z "$CURRENT_BRANCH" ] && CURRENT_BRANCH="main"
 
 # ------------------------------------------------------------------------------
-# Step 4: Scaffold UI & Offline-First src/ Architecture
+# Step 4: Scaffold UI & Offline-First src/ Architecture (Non-Destructive for Existing Repos)
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[4/6] 📁 Structuring offline-first architecture (src/)...${NC}"
 
 mkdir -p "$TARGET_DIR/src/css" "$TARGET_DIR/src/js" "$TARGET_DIR/src/assets"
 
-if [ "$IS_NEW_REPO" = true ] || [ ! -f "$TARGET_DIR/src/index.html" ]; then
+if [ "$IS_NEW_REPO" = true ]; then
+  # Brand new repository starter UI
   cat << 'HTML' > "$TARGET_DIR/src/index.html"
 <!DOCTYPE html>
 <html lang="en">
@@ -291,6 +292,14 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 JS
   echo -e "      ${GREEN}✓ Created offline-first mobile UI in src/${NC}"
+
+else
+  # EXISTING REPO: Safe non-destructive linking
+  echo -e "      ${YELLOW}⚠️ Preserving existing repository code without breaking...${NC}"
+  if [ ! -f "$TARGET_DIR/src/index.html" ] && [ -f "$TARGET_DIR/index.html" ]; then
+    echo "      Creating safe copy of root index.html -> src/index.html..."
+    cp "$TARGET_DIR/index.html" "$TARGET_DIR/src/index.html"
+  fi
 fi
 
 if [ ! -f "$TARGET_DIR/package.json" ]; then
@@ -599,7 +608,8 @@ cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
 ORG_DOC
 
 # 6. README.md
-cat << README_DOC > "$TARGET_DIR/README.md"
+if [ ! -f "$TARGET_DIR/README.md" ]; then
+  cat << README_DOC > "$TARGET_DIR/README.md"
 # ${SELECTED_REPO##*/} (Offline-First Capacitor + Cloud Gradle + Auto-Releases)
 
 An offline-first hybrid mobile app structured for **Capacitor** with automated **GitHub Actions Gradle APK/AAB compilation and GitHub Releases**.
@@ -622,15 +632,68 @@ Every push to \`main\` automatically compiles both the Android APK and App Bundl
 - **Direct Download:** Check the **Releases** tab on GitHub to download the latest \`app-debug.apk\`.
 - **Play Store Requirements:** See [GOOGLE_PLAY_STORE_GUIDE.md](GOOGLE_PLAY_STORE_GUIDE.md) for the complete publishing checklist.
 README_DOC
+else
+  if ! grep -q "Cloud Gradle APK/AAB Compilation" "$TARGET_DIR/README.md"; then
+    cat << 'README_APPEND' >> "$TARGET_DIR/README.md"
+
+---
+
+## 🤖 Cloud Gradle APK/AAB Compilation & Releases
+Every push automatically compiles the Android APK and App Bundle (.aab) in GitHub Actions and publishes a **GitHub Release**:
+- **Releases Tab:** Download \`app-debug.apk\` from your GitHub Releases page.
+- **Store Rules:** See \`GOOGLE_PLAY_STORE_GUIDE.md\` for Google Play publishing rules.
+README_APPEND
+  fi
+fi
 
 # ------------------------------------------------------------------------------
-# Step 6: Generate All-in-One Code Digest (REPO_ALL_IN_ONE.txt)
+# Step 6: Generate All-in-One Code Digest (Tailored for New vs Existing Repo)
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[6/6] 🧠 Generating All-in-One Code Digest with AI Prompt...${NC}"
 
-AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Ensure all paths in index.html are strictly relative, that offline storage (localStorage/IndexedDB) is utilized, adhere to Google Play Store requirements in GOOGLE_PLAY_STORE_GUIDE.md (e.g. versionCode incrementing and AAB format), and outline how the automated GitHub Actions workflow compiles the project into an Android APK via Gradle and automatically publishes GitHub Releases.'
+if [ "$IS_NEW_REPO" = true ]; then
+  AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Ensure all paths in index.html are strictly relative, that offline storage (localStorage/IndexedDB) is utilized, adhere to Google Play Store requirements in GOOGLE_PLAY_STORE_GUIDE.md (e.g. versionCode incrementing and AAB format), and outline how the automated GitHub Actions workflow compiles the project into an Android APK via Gradle and automatically publishes GitHub Releases.'
+  OUTPUT_DIGEST="$TARGET_DIR/REPO_ALL_IN_ONE.txt"
+else
+  # SPECIALIZED EXISTING REPO MIGRATION PROMPT (Prevents breaking changes!)
+  AI_PROMPT='Act as a Senior Principal Mobile Engineer and Codebase Migration Specialist. Review the provided existing repository files below and refactor the project layout into a clean, minimal, and scalable offline-first Capacitor architecture without breaking any existing functionality.
 
-OUTPUT_DIGEST="$TARGET_DIR/REPO_ALL_IN_ONE.txt"
+OBJECTIVE:
+Analyze the full source code provided and output a non-destructive migration plan and exact file modifications to achieve 100% compatibility with Capacitor, Gradle APK/AAB builds, and Google Play Store policies.
+
+STRICT CONSTRAINTS & AUDIT RULES:
+1. ZERO BREAKING CHANGES:
+   - Preserve all existing UI, business logic, state handling, routes, and feature behaviors.
+   - Do not delete existing assets or change variable names unless necessary for mobile compatibility.
+
+2. WEB ASSETS RESTRUCTURING (src/):
+   - Group all client-facing web assets into a dedicated src/ directory (src/index.html, src/css/, src/js/, src/assets/).
+   - Ensure capacitor.config.json correctly points to "webDir": "src".
+
+3. STRICT RELATIVE PATH CONVERSION (CRITICAL):
+   - In Android WebViews, absolute root paths (e.g. /style.css, /app.js, /images/logo.png) result in blank screens.
+   - Convert all asset and script references in index.html, JS, and CSS to strictly relative paths (e.g. css/style.css, js/app.js, ./assets/logo.png).
+
+4. FRONTEND / BACKEND DECOUPLING:
+   - Identify any server-side runtime code (Node.js, Express, server.js, Cloudflare workers).
+   - Ensure backend files remain outside of src/ so they are not bundled into the client APK.
+   - If the frontend communicates with the backend, ensure full HTTPS URLs are used with graceful offline error handling.
+
+5. OFFLINE-FIRST RESILIENCE:
+   - Ensure the app can boot and render cleanly even if the user opens the app while in Airplane mode or without internet.
+   - Use localStorage or IndexedDB for offline state storage.
+
+6. GOOGLE PLAY & GRADLE READINESS:
+   - Adhere to GOOGLE_PLAY_STORE_GUIDE.md (e.g. incremental versionCode in build.gradle, Android App Bundle .aab format).
+
+OUTPUT FORMAT REQUIRED:
+1. Audit Summary: Detailed list of potential breaking points found (absolute paths, server dependencies, missing offline handlers).
+2. Refactored File Tree: Explicit layout of the restructured repository.
+3. Code Replacements / Unified Diffs: Complete, drop-in replacement code for any modified files with exact filepaths.
+4. Verification Instructions: How to test the refactored code both in a browser and as a compiled Android APK.'
+  OUTPUT_DIGEST="$TARGET_DIR/FIX_EXISTING_REPO_ALL_IN_ONE.txt"
+fi
+
 rm -f "$OUTPUT_DIGEST"
 
 cat << PROMPT_BLOCK > "$OUTPUT_DIGEST"
@@ -645,7 +708,6 @@ Repository: $SELECTED_REPO
 --------------------------------------------------------------------------------
 PROMPT_BLOCK
 
-# Add directory tree
 if command -v tree >/dev/null 2>&1; then
   (cd "$TARGET_DIR" && tree -a -I '.git|node_modules|android|.gradle|build|dist') >> "$OUTPUT_DIGEST"
 else
@@ -683,7 +745,12 @@ FILE_HEADER
   fi
 done
 
-echo -e "      ${GREEN}✓ Digest created:${NC} ${BOLD}REPO_ALL_IN_ONE.txt${NC}"
+# Keep REPO_ALL_IN_ONE.txt also available
+if [ "$IS_NEW_REPO" = false ]; then
+  cp "$OUTPUT_DIGEST" "$TARGET_DIR/REPO_ALL_IN_ONE.txt"
+fi
+
+echo -e "      ${GREEN}✓ Digest created:${NC} ${BOLD}$(basename "$OUTPUT_DIGEST")${NC}"
 
 # ------------------------------------------------------------------------------
 # Git Commit, Push & Dispatch
@@ -694,23 +761,31 @@ git add .
 if git diff-index --quiet HEAD -- 2>/dev/null; then
   echo "      No changes needed to commit."
 else
-  git commit -m "feat: offline-first capacitor setup with cloud gradle CI, auto releases, and Google Play guide"
+  git commit -m "feat: configure capacitor, cloud gradle CI, auto-releases, and AI migration context"
   git push -u origin "$CURRENT_BRANCH"
   echo -e "      ${GREEN}✓ Successfully pushed to GitHub!${NC}"
 fi
 
 echo -e "\n${BOLD}════════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}${BOLD}🎉 SUCCESS! Your Project is Live on GitHub!${NC}"
+echo -e "${GREEN}${BOLD}🎉 SUCCESS! Installation Completed!${NC}"
 echo -e "Repository: ${CYAN}https://github.com/${SELECTED_REPO}${NC}"
 echo -e "════════════════════════════════════════════════════════════════"
+
+if [ "$IS_NEW_REPO" = true ]; then
+  echo -e "✨ ${BOLD}New Repository Ready:${NC}"
+  echo -e "   1. Open ${CYAN}REPO_ALL_IN_ONE.txt${NC} or ${CYAN}AI_INSTRUCTIONS.md${NC}."
+  echo -e "   2. Paste into ChatGPT, Claude, Gemini, or Antigravity to build features!\n"
+else
+  echo -e "🚨 ${YELLOW}${BOLD}EXISTING REPOSITORY CONFIGURED (MIGRATION SAFEGUARD):${NC}"
+  echo -e "   To adapt your existing code without breaking relative links or features:"
+  echo -e "   1. Open ${CYAN}${BOLD}FIX_EXISTING_REPO_ALL_IN_ONE.txt${NC}"
+  echo -e "   2. Copy and paste the entire file into ${BOLD}ChatGPT, Claude, Gemini, or Antigravity${NC}."
+  echo -e "   3. The embedded AI prompt will audit your existing files, convert"
+  echo -e "      absolute paths into relative paths, and guide your safe migration!\n"
+fi
+
 echo -e "📦 ${BOLD}Automated GitHub Releases:${NC}"
-echo -e "   Every push to ${CURRENT_BRANCH} automatically compiles the Android APK &"
-echo -e "   App Bundle (.aab) and publishes a ${CYAN}GitHub Release${NC}."
-echo -e "   View releases at: ${CYAN}https://github.com/${SELECTED_REPO}/releases${NC}\n"
-echo -e "✨ ${BOLD}How to use this with an AI Assistant:${NC}"
-echo -e "   1. Open ${CYAN}REPO_ALL_IN_ONE.txt${NC} or ${CYAN}AI_INSTRUCTIONS.md${NC}."
-echo -e "   2. Copy and paste into ChatGPT, Claude, Gemini, or Antigravity."
-echo -e "   3. Follow ${CYAN}GOOGLE_PLAY_STORE_GUIDE.md${NC} for store publishing rules!\n"
+echo -e "   View & download compiled APKs at: ${CYAN}https://github.com/${SELECTED_REPO}/releases${NC}\n"
 
 if [ "$IS_LOCAL" = false ]; then
   read -rp "Would you like to trigger the Cloud APK build right now? [y/N]: " run_now
