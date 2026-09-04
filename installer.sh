@@ -294,11 +294,26 @@ JS
   echo -e "      ${GREEN}✓ Created offline-first mobile UI in src/${NC}"
 
 else
-  # EXISTING REPO: Safe non-destructive linking
+  # EXISTING REPO: Safe non-destructive linking and bidirectional staging
   echo -e "      ${YELLOW}⚠️ Preserving existing repository code without breaking...${NC}"
-  if [ ! -f "$TARGET_DIR/src/index.html" ] && [ -f "$TARGET_DIR/index.html" ]; then
-    echo "      Creating safe copy of root index.html -> src/index.html..."
-    cp "$TARGET_DIR/index.html" "$TARGET_DIR/src/index.html"
+  mkdir -p "$TARGET_DIR/src/css" "$TARGET_DIR/src/js" "$TARGET_DIR/src/assets"
+  [ -f "$TARGET_DIR/index.html" ] && cp -f "$TARGET_DIR/index.html" "$TARGET_DIR/src/index.html"
+  [ -f "$TARGET_DIR/style.css" ] && cp -f "$TARGET_DIR/style.css" "$TARGET_DIR/src/style.css" && cp -f "$TARGET_DIR/style.css" "$TARGET_DIR/src/css/style.css"
+  [ -d "$TARGET_DIR/css" ] && cp -rf "$TARGET_DIR/css/"* "$TARGET_DIR/src/css/" 2>/dev/null || true
+  [ -f "$TARGET_DIR/app.js" ] && cp -f "$TARGET_DIR/app.js" "$TARGET_DIR/src/app.js"
+  [ -d "$TARGET_DIR/js" ] && cp -rf "$TARGET_DIR/js" "$TARGET_DIR/src/" 2>/dev/null || true
+  [ -f "$TARGET_DIR/turso.js" ] && cp -f "$TARGET_DIR/turso.js" "$TARGET_DIR/src/turso.js"
+  [ -f "$TARGET_DIR/sw.js" ] && cp -f "$TARGET_DIR/sw.js" "$TARGET_DIR/src/sw.js"
+  [ -f "$TARGET_DIR/manifest.json" ] && cp -f "$TARGET_DIR/manifest.json" "$TARGET_DIR/src/manifest.json"
+  [ -f "$TARGET_DIR/version.json" ] && cp -f "$TARGET_DIR/version.json" "$TARGET_DIR/src/version.json"
+
+  # Bidirectional fallback: ensure root has index.html and style.css for web hosting/Vercel
+  if [ -f "$TARGET_DIR/src/css/style.css" ] && [ ! -f "$TARGET_DIR/style.css" ]; then
+    cp -f "$TARGET_DIR/src/css/style.css" "$TARGET_DIR/style.css"
+    cp -f "$TARGET_DIR/src/css/style.css" "$TARGET_DIR/src/style.css"
+  fi
+  if [ -f "$TARGET_DIR/src/index.html" ] && [ ! -f "$TARGET_DIR/index.html" ]; then
+    cp -f "$TARGET_DIR/src/index.html" "$TARGET_DIR/index.html"
   fi
 fi
 
@@ -385,8 +400,19 @@ jobs:
 
       - name: 🛠️ Stage Web Assets into src/
         run: |
-          mkdir -p src
-          cp -rf index.html style.css app.js js manifest.json version.json src/ 2>/dev/null || true
+          mkdir -p src src/css src/js
+          cp -rf index.html style.css app.js js turso.js sw.js manifest.json version.json assets src/ 2>/dev/null || true
+          if [ -f style.css ]; then
+            cp -f style.css src/style.css 2>/dev/null || true
+            cp -f style.css src/css/style.css 2>/dev/null || true
+          elif [ -f src/css/style.css ]; then
+            cp -f src/css/style.css src/style.css 2>/dev/null || true
+          elif [ -f src/style.css ]; then
+            cp -f src/style.css src/css/style.css 2>/dev/null || true
+          fi
+          if [ ! -f index.html ] && [ -f src/index.html ]; then
+            cp -f src/index.html index.html
+          fi
 
       - name: ⚡ Initialize Android Platform & Sync Web Assets
         run: |
@@ -394,13 +420,15 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
-          echo "" >> android/app/build.gradle
-          echo "dependencies {" >> android/app/build.gradle
-          echo "    constraints {" >> android/app/build.gradle
-          echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")' >> android/app/build.gradle
-          echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")' >> android/app/build.gradle
-          echo "    }" >> android/app/build.gradle
-          echo "}" >> android/app/build.gradle
+          if ! grep -q "kotlin-stdlib-jdk8:1.8.22" android/app/build.gradle 2>/dev/null; then
+            echo "" >> android/app/build.gradle
+            echo "dependencies {" >> android/app/build.gradle
+            echo "    constraints {" >> android/app/build.gradle
+            echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")' >> android/app/build.gradle
+            echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")' >> android/app/build.gradle
+            echo "    }" >> android/app/build.gradle
+            echo "}" >> android/app/build.gradle
+          fi
 
       - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |

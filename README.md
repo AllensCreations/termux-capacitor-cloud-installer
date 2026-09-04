@@ -33,8 +33,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/AllensCreations/termux-capac
    - Details the 5 strict rules for mobile WebView compatibility (relative paths, `src/` layout, offline storage, safe areas).
    - Feed `AI_INSTRUCTIONS.md` or `REPO_ALL_IN_ONE.txt` to ChatGPT, Claude, Gemini, or Antigravity to build app features safely.
 5. **🐘 Zero-Setup Cloud Gradle CI (`build-apk.yml`):**
-   - Builds run 100% in GitHub Actions cloud runners.
-   - Keeps your phone completely free from gigabytes of heavy Android SDKs and Java Gradle daemons.
+   - Configured with **Java JDK 21 (Temurin)** matching modern Capacitor 6/7 requirements.
+   - Built-in **Kotlin duplicate class constraint resolution** (`kotlin-stdlib-jdk8:1.8.22`).
+   - Intelligent **dual-path CSS and web asset staging** (`style.css` and `css/style.css`, ES modules, service workers).
+   - Builds run 100% in GitHub Actions cloud runners, keeping your device clean of gigabytes of SDKs.
 
 ---
 

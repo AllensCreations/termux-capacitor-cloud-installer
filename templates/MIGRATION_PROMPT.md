@@ -1,6 +1,6 @@
 # 🛠️ AI Codebase Refactoring & Migration Prompt
 
-> **When installing Capacitor into an EXISTING repository, copy and paste the prompt below (or `FIX_EXISTING_REPO_ALL_IN_ONE.txt`) into ChatGPT, Claude, Gemini, or Antigravity to safely adapt your code without breaking it.**
+> **When installing Capacitor into an EXISTING repository, copy and paste the prompt below (or `<REPO_NAME>_ALL_IN_ONE_FIX.txt`) into ChatGPT, Claude, Gemini, or Antigravity to safely adapt your code without breaking it.**
 
 ---
 

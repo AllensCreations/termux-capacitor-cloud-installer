@@ -43,8 +43,19 @@ jobs:
 
       - name: 🛠️ Stage Web Assets into src/
         run: |
-          mkdir -p src
-          cp -rf index.html style.css app.js js manifest.json version.json src/ 2>/dev/null || true
+          mkdir -p src src/css src/js
+          cp -rf index.html style.css app.js js turso.js sw.js manifest.json version.json assets src/ 2>/dev/null || true
+          if [ -f style.css ]; then
+            cp -f style.css src/style.css 2>/dev/null || true
+            cp -f style.css src/css/style.css 2>/dev/null || true
+          elif [ -f src/css/style.css ]; then
+            cp -f src/css/style.css src/style.css 2>/dev/null || true
+          elif [ -f src/style.css ]; then
+            cp -f src/style.css src/css/style.css 2>/dev/null || true
+          fi
+          if [ ! -f index.html ] && [ -f src/index.html ]; then
+            cp -f src/index.html index.html
+          fi
 
       - name: ⚡ Initialize Android Platform & Sync Web Assets
         run: |
@@ -52,13 +63,15 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
-          echo "" >> android/app/build.gradle
-          echo "dependencies {" >> android/app/build.gradle
-          echo "    constraints {" >> android/app/build.gradle
-          echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")' >> android/app/build.gradle
-          echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")' >> android/app/build.gradle
-          echo "    }" >> android/app/build.gradle
-          echo "}" >> android/app/build.gradle
+          if ! grep -q "kotlin-stdlib-jdk8:1.8.22" android/app/build.gradle 2>/dev/null; then
+            echo "" >> android/app/build.gradle
+            echo "dependencies {" >> android/app/build.gradle
+            echo "    constraints {" >> android/app/build.gradle
+            echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")' >> android/app/build.gradle
+            echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")' >> android/app/build.gradle
+            echo "    }" >> android/app/build.gradle
+            echo "}" >> android/app/build.gradle
+          fi
 
       - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |
