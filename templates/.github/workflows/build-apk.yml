@@ -52,19 +52,13 @@ jobs:
             npx cap add android
           fi
           npx cap sync android
-          cat << 'KOTLIN_FIX' >> android/app/build.gradle
-
-dependencies {
-    constraints {
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22") {
-            because("kotlin-stdlib-jdk7 is now part of kotlin-stdlib")
-        }
-        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22") {
-            because("kotlin-stdlib-jdk8 is now part of kotlin-stdlib")
-        }
-    }
-}
-KOTLIN_FIX
+          echo "" >> android/app/build.gradle
+          echo "dependencies {" >> android/app/build.gradle
+          echo "    constraints {" >> android/app/build.gradle
+          echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22")' >> android/app/build.gradle
+          echo '        implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22")' >> android/app/build.gradle
+          echo "    }" >> android/app/build.gradle
+          echo "}" >> android/app/build.gradle
 
       - name: 🐘 Compile APK & App Bundle (AAB) with Gradle
         run: |
