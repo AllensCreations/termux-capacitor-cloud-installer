@@ -1,6 +1,6 @@
 # 🤖 AI Assistant Guidelines & Development Rules (Capacitor + Cloud Gradle)
 
-> **Feed this file (or `REPO_ALL_IN_ONE.txt`) to ChatGPT, Claude, Gemini, or Antigravity to build features with 100% Capacitor, Gradle & Google Play compatibility.**
+> **Feed this file (or `<REPO_NAME>_ALL_IN_ONE.txt` / `<REPO_NAME>_ALL_IN_ONE_FIX.txt`) to ChatGPT, Claude, Gemini, or Antigravity to build features with 100% Capacitor, Gradle & Google Play compatibility.**
 
 ---
 

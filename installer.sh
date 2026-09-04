@@ -651,9 +651,11 @@ fi
 # ------------------------------------------------------------------------------
 echo -e "\n${BOLD}[6/6] 🧠 Generating All-in-One Code Digest with AI Prompt...${NC}"
 
+repo_name_only=$(basename "$SELECTED_REPO")
+
 if [ "$IS_NEW_REPO" = true ]; then
   AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Ensure all paths in index.html are strictly relative, that offline storage (localStorage/IndexedDB) is utilized, adhere to Google Play Store requirements in GOOGLE_PLAY_STORE_GUIDE.md (e.g. versionCode incrementing and AAB format), and outline how the automated GitHub Actions workflow compiles the project into an Android APK via Gradle and automatically publishes GitHub Releases.'
-  OUTPUT_DIGEST="$TARGET_DIR/REPO_ALL_IN_ONE.txt"
+  OUTPUT_DIGEST="$TARGET_DIR/${repo_name_only}_ALL_IN_ONE.txt"
 else
   # SPECIALIZED EXISTING REPO MIGRATION PROMPT (Prevents breaking changes!)
   AI_PROMPT='Act as a Senior Principal Mobile Engineer and Codebase Migration Specialist. Review the provided existing repository files below and refactor the project layout into a clean, minimal, and scalable offline-first Capacitor architecture without breaking any existing functionality.
@@ -691,7 +693,7 @@ OUTPUT FORMAT REQUIRED:
 2. Refactored File Tree: Explicit layout of the restructured repository.
 3. Code Replacements / Unified Diffs: Complete, drop-in replacement code for any modified files with exact filepaths.
 4. Verification Instructions: How to test the refactored code both in a browser and as a compiled Android APK.'
-  OUTPUT_DIGEST="$TARGET_DIR/FIX_EXISTING_REPO_ALL_IN_ONE.txt"
+  OUTPUT_DIGEST="$TARGET_DIR/${repo_name_only}_ALL_IN_ONE_FIX.txt"
 fi
 
 rm -f "$OUTPUT_DIGEST"
@@ -745,9 +747,9 @@ FILE_HEADER
   fi
 done
 
-# Keep REPO_ALL_IN_ONE.txt also available
+# Keep repo-named ALL_IN_ONE also available
 if [ "$IS_NEW_REPO" = false ]; then
-  cp "$OUTPUT_DIGEST" "$TARGET_DIR/REPO_ALL_IN_ONE.txt"
+  cp "$OUTPUT_DIGEST" "$TARGET_DIR/${repo_name_only}_ALL_IN_ONE.txt"
 fi
 
 echo -e "      ${GREEN}✓ Digest created:${NC} ${BOLD}$(basename "$OUTPUT_DIGEST")${NC}"
@@ -773,12 +775,12 @@ echo -e "═══════════════════════�
 
 if [ "$IS_NEW_REPO" = true ]; then
   echo -e "✨ ${BOLD}New Repository Ready:${NC}"
-  echo -e "   1. Open ${CYAN}REPO_ALL_IN_ONE.txt${NC} or ${CYAN}AI_INSTRUCTIONS.md${NC}."
+  echo -e "   1. Open ${CYAN}${repo_name_only}_ALL_IN_ONE.txt${NC} or ${CYAN}AI_INSTRUCTIONS.md${NC}."
   echo -e "   2. Paste into ChatGPT, Claude, Gemini, or Antigravity to build features!\n"
 else
   echo -e "🚨 ${YELLOW}${BOLD}EXISTING REPOSITORY CONFIGURED (MIGRATION SAFEGUARD):${NC}"
   echo -e "   To adapt your existing code without breaking relative links or features:"
-  echo -e "   1. Open ${CYAN}${BOLD}FIX_EXISTING_REPO_ALL_IN_ONE.txt${NC}"
+  echo -e "   1. Open ${CYAN}${BOLD}${repo_name_only}_ALL_IN_ONE_FIX.txt${NC}"
   echo -e "   2. Copy and paste the entire file into ${BOLD}ChatGPT, Claude, Gemini, or Antigravity${NC}."
   echo -e "   3. The embedded AI prompt will audit your existing files, convert"
   echo -e "      absolute paths into relative paths, and guide your safe migration!\n"

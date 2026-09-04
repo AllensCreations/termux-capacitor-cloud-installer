@@ -14,7 +14,7 @@
 ├── GOOGLE_PLAY_STORE_GUIDE.md         # 📱 Google Play requirements & publishing checklist
 ├── FOLDER_ORGANIZATION.md             # 📖 Architecture & layout blueprint
 ├── README.md                          # 🚀 Project documentation & APK download guide
-└── REPO_ALL_IN_ONE.txt                # 🧠 Consolidated codebase digest with AI prompt
+└── <REPO_NAME>_ALL_IN_ONE.txt         # 🧠 Consolidated codebase digest with AI prompt (named after repo)
 ```
 
 ---
