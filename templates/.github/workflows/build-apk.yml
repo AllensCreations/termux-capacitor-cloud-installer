@@ -17,11 +17,11 @@ jobs:
       - name: 📥 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ☕ Set up Java JDK 17 (Temurin)
+      - name: ☕ Set up Java JDK 21 (Temurin)
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: 📱 Set up Android SDK
         uses: android-actions/setup-android@v3
@@ -41,16 +41,10 @@ jobs:
           fi
           npm install --save @capacitor/core @capacitor/cli @capacitor/android
 
-      - name: 🛠️ Ensure Web Directory and Entrypoint Exist
+      - name: 🛠️ Stage Web Assets into src/
         run: |
-          if [ ! -d "src" ]; then
-            mkdir -p src
-            if [ -f "index.html" ]; then
-              cp index.html src/
-            else
-              echo "<!DOCTYPE html><html><head><title>Offline App</title></head><body><h1>Welcome</h1></body></html>" > src/index.html
-            fi
-          fi
+          mkdir -p src
+          cp -rf index.html style.css app.js js manifest.json version.json src/ 2>/dev/null || true
 
       - name: ⚡ Initialize Android Platform & Sync Web Assets
         run: |
