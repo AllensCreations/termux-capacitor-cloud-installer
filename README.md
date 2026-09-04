@@ -9,7 +9,7 @@ A fully automated, remote installer built for **Android Termux** and Linux termi
 Run the installer directly inside **Termux** (or any bash terminal) using `curl`:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/<YOUR_USERNAME>/termux-capacitor-cloud-installer/main/installer.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/AllensCreations/termux-capacitor-cloud-installer/main/installer.sh)
 ```
 
 *(Or clone this repository and run `./installer.sh` locally)*.
