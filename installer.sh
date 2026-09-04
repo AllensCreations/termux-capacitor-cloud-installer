@@ -18,28 +18,33 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+MAGENTA='\033[0;35m'
 NC='\033[0m' # No Color
 
+clear 2>/dev/null || true
 echo -e "${CYAN}${BOLD}"
 cat << 'BANNER'
 ╔════════════════════════════════════════════════════════════════════════════╗
 ║                                                                            ║
 ║       ⚡ REMOTE CAPACITOR & CLOUD GRADLE WORKFLOW INSTALLER ⚡             ║
-║                  Termux & Cloud CI/CD Automation Engine                    ║
+║            Zero-Setup Android APKs via GitHub Actions & Termux             ║
 ║                                                                            ║
 ╚════════════════════════════════════════════════════════════════════════════╝
 BANNER
 echo -e "${NC}"
 
+# Find script template directory if running locally or prepare fallback
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+
 # ------------------------------------------------------------------------------
 # Step 1: Check & Install Dependencies (gh, jq, git, curl)
 # ------------------------------------------------------------------------------
-echo -e "${BOLD}[1/7] Checking environment and dependencies...${NC}"
+echo -e "${BOLD}[1/6] 🔍 Checking environment & dependencies...${NC}"
 
 is_termux=false
 if [ -d "/data/data/com.termux" ] || command -v termux-setup-storage >/dev/null 2>&1; then
   is_termux=true
-  echo -e "📱 Environment detected: ${GREEN}Termux (Android)${NC}"
+  echo -e "      📱 Environment detected: ${GREEN}Termux (Android)${NC}"
 fi
 
 missing_pkgs=()
@@ -50,103 +55,129 @@ for cmd in gh jq git curl; do
 done
 
 if [ ${#missing_pkgs[@]} -gt 0 ]; then
-  echo -e "${YELLOW}Missing packages:${NC} ${missing_pkgs[*]}"
+  echo -e "      ${YELLOW}Missing packages:${NC} ${missing_pkgs[*]}"
   if [ "$is_termux" = true ]; then
-    echo -e "Installing via ${CYAN}pkg install -y ${missing_pkgs[*]}${NC}..."
+    echo -e "      Installing via ${CYAN}pkg install -y ${missing_pkgs[*]}${NC}..."
     pkg update -y && pkg install -y "${missing_pkgs[@]}"
   else
-    echo -e "Please ensure ${missing_pkgs[*]} are installed on your system."
+    echo -e "      Please ensure ${missing_pkgs[*]} are installed."
+    exit 1
   fi
 else
-  echo -e "${GREEN}✓ All dependencies are installed (gh, jq, git, curl).${NC}"
+  echo -e "      ${GREEN}✓ All tools verified (gh, jq, git, curl).${NC}"
 fi
 
 # ------------------------------------------------------------------------------
 # Step 2: GitHub CLI Authentication
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[2/7] Verifying GitHub authentication...${NC}"
+echo -e "\n${BOLD}[2/6] 🔑 Verifying GitHub authentication...${NC}"
 
 if ! gh auth status >/dev/null 2>&1; then
-  echo -e "${YELLOW}⚠️ You are not logged in to GitHub.${NC}"
-  echo -e "Launching ${CYAN}gh auth login${NC} (Select 'GitHub.com', 'HTTPS', and authenticate with browser/code)..."
-  gh auth login
+  echo -e "      ${YELLOW}⚠️ Not logged into GitHub.${NC}"
+  echo -e "      Launching ${CYAN}gh auth login${NC}..."
+  gh auth login -h github.com -p https -w
 fi
 
-gh_user=$(gh api user -q .login 2>/dev/null || echo "")
-echo -e "${GREEN}✓ Authenticated as GitHub user:${NC} ${BOLD}${gh_user}${NC}"
+gh auth setup-git >/dev/null 2>&1 || true
+gh_user=$(gh api user -q .login 2>/dev/null || echo "user")
+echo -e "      ${GREEN}✓ Logged in as:${NC} ${BOLD}${gh_user}${NC}"
 
 # ------------------------------------------------------------------------------
-# Step 3: Select Target Repository
+# Step 3: Action Selection (New Repo Recommended)
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[3/7] Fetching your GitHub repositories...${NC}"
+echo -e "\n${BOLD}[3/6] 🎯 Choose Setup Mode:${NC}\n"
+echo -e "  ${GREEN}${BOLD}[1] 🌟 Create a Brand New Clean Repository (Recommended)${NC}"
+echo -e "      Scaffolds a pristine offline-first app, AI instructions, and Gradle CI."
+echo -e "  ${CYAN}[2] 📂 Select an Existing Repository from GitHub${NC}"
+echo -e "      Injects Capacitor & Gradle CI into one of your existing repos."
+echo -e "  ${YELLOW}[3] 💻 Use an Existing Local Folder${NC}"
+echo -e "      Configures a folder already on your device."
 
-mapfile -t repos < <(gh repo list --limit 30 --json nameWithOwner,isPrivate,description --jq '.[] | "\(.nameWithOwner)\t\(if .isPrivate then "[Private]" else "[Public]" end)\t\(.description // "No description")"')
-
-if [ ${#repos[@]} -eq 0 ]; then
-  echo -e "${YELLOW}No repositories found under account. You can specify one manually.${NC}"
-fi
-
-echo -e "\nSelect a repository to install Capacitor & Cloud Gradle into:\n"
-idx=1
-for r in "${repos[@]}"; do
-  r_name=$(echo "$r" | awk -F'\t' '{print $1}')
-  r_vis=$(echo "$r" | awk -F'\t' '{print $2}')
-  r_desc=$(echo "$r" | awk -F'\t' '{print $3}')
-  printf "  ${CYAN}[%2d]${NC} ${BOLD}%-35s${NC} %-10s %s\n" "$idx" "$r_name" "$r_vis" "$r_desc"
-  ((idx++))
-done
-printf "  ${YELLOW}[ M]${NC} Enter repository manually (e.g. username/my-app)\n"
-printf "  ${YELLOW}[ L]${NC} Use an existing local folder\n\n"
-
-read -rp "Enter choice [1-$((idx-1)), M, or L]: " user_choice
+echo ""
+read -rp "Enter choice [1, 2, or 3] (Default: 1): " mode_choice
+mode_choice="${mode_choice:-1}"
 
 TARGET_DIR=""
 SELECTED_REPO=""
+IS_NEW_REPO=false
 IS_LOCAL=false
 
-if [[ "$user_choice" =~ ^[0-9]+$ ]] && [ "$user_choice" -ge 1 ] && [ "$user_choice" -lt "$idx" ]; then
-  SELECTED_REPO=$(echo "${repos[$((user_choice-1))]}" | awk -F'\t' '{print $1}')
-elif [[ "$user_choice" =~ ^[Mm]$ ]]; then
-  read -rp "Enter GitHub repository (owner/repo): " SELECTED_REPO
-elif [[ "$user_choice" =~ ^[Ll]$ ]]; then
+if [ "$mode_choice" = "1" ]; then
+  IS_NEW_REPO=true
+  echo -e "\n${BOLD}--- 🌟 Create New GitHub Repository ---${NC}"
+  read -rp "Enter new repository name (e.g. my-mobile-app): " NEW_REPO_NAME
+  NEW_REPO_NAME=$(echo "$NEW_REPO_NAME" | tr ' ' '-' | tr -cd '[:alnum:]-_')
+  
+  if [ -z "$NEW_REPO_NAME" ]; then
+    NEW_REPO_NAME="offline-mobile-app-$(date +%s)"
+    echo "Using generated name: $NEW_REPO_NAME"
+  fi
+
+  read -rp "Repository visibility [public/private] (Default: public): " REPO_VIS
+  REPO_VIS="${REPO_VIS:-public}"
+  if [[ ! "$REPO_VIS" =~ ^(public|private)$ ]]; then
+    REPO_VIS="public"
+  fi
+
+  read -rp "Description (Optional): " REPO_DESC
+  REPO_DESC="${REPO_DESC:-Offline-first Capacitor app built with Cloud Gradle}"
+
+  CLONE_DIR="${TMPDIR:-/tmp}/new-repo-$NEW_REPO_NAME"
+  rm -rf "$CLONE_DIR"
+  echo -e "\nCreating GitHub repository ${CYAN}${gh_user}/${NEW_REPO_NAME}${NC}..."
+  gh repo create "$NEW_REPO_NAME" "--$REPO_VIS" --description "$REPO_DESC" --clone "$CLONE_DIR"
+  
+  SELECTED_REPO="${gh_user}/${NEW_REPO_NAME}"
+  TARGET_DIR="$CLONE_DIR"
+
+elif [ "$mode_choice" = "2" ]; then
+  echo -e "\nFetching your GitHub repositories..."
+  mapfile -t repos < <(gh repo list --limit 25 --json nameWithOwner,isPrivate,description --jq '.[] | "\(.nameWithOwner)\t\(if .isPrivate then "[Private]" else "[Public]" end)\t\(.description // "")"')
+  
+  idx=1
+  for r in "${repos[@]}"; do
+    r_name=$(echo "$r" | awk -F'\t' '{print $1}')
+    r_vis=$(echo "$r" | awk -F'\t' '{print $2}')
+    printf "  [%2d] %-35s %s\n" "$idx" "$r_name" "$r_vis"
+    ((idx++))
+  done
+  read -rp "Select repository [1-$((idx-1))]: " repo_num
+  if [[ "$repo_num" =~ ^[0-9]+$ ]] && [ "$repo_num" -ge 1 ] && [ "$repo_num" -lt "$idx" ]; then
+    SELECTED_REPO=$(echo "${repos[$((repo_num-1))]}" | awk -F'\t' '{print $1}')
+  else
+    echo -e "${RED}Invalid selection.${NC}"
+    exit 1
+  fi
+
+  CLONE_DIR="${TMPDIR:-/tmp}/existing-repo-$(date +%s)"
+  echo -e "\nCloning ${SELECTED_REPO}..."
+  git clone "https://github.com/$SELECTED_REPO.git" "$CLONE_DIR"
+  TARGET_DIR="$CLONE_DIR"
+
+elif [ "$mode_choice" = "3" ]; then
   IS_LOCAL=true
-  read -rp "Enter absolute path to local folder: " TARGET_DIR
+  read -rp "Enter full path to local directory: " TARGET_DIR
   if [ ! -d "$TARGET_DIR" ]; then
     echo -e "${RED}Directory does not exist: $TARGET_DIR${NC}"
     exit 1
   fi
-else
-  echo -e "${RED}Invalid selection. Exiting.${NC}"
-  exit 1
+  SELECTED_REPO=$(basename "$TARGET_DIR")
 fi
 
-# Clone repository if remote
-if [ "$IS_LOCAL" = false ]; then
-  repo_basename=$(basename "$SELECTED_REPO")
-  CLONE_DIR="${TMPDIR:-/tmp}/cloud-installer-$repo_basename-$(date +%s)"
-  echo -e "\n📥 Cloning ${BOLD}$SELECTED_REPO${NC} into temporary workspace..."
-  git clone "https://github.com/$SELECTED_REPO.git" "$CLONE_DIR"
-  TARGET_DIR="$CLONE_DIR"
-fi
-
-# Detect default branch
 cd "$TARGET_DIR"
 CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
-echo -e "🌿 Target branch: ${CYAN}$CURRENT_BRANCH${NC}"
+[ -z "$CURRENT_BRANCH" ] && CURRENT_BRANCH="main"
 
 # ------------------------------------------------------------------------------
-# Step 4: Scaffold / Restructure Offline-First src/ Layout
+# Step 4: Scaffold UI & Offline-First src/ Architecture
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[4/7] Structuring offline-first Capacitor architecture (src/)...${NC}"
+echo -e "\n${BOLD}[4/6] 📁 Structuring offline-first architecture (src/)...${NC}"
 
 mkdir -p "$TARGET_DIR/src/css" "$TARGET_DIR/src/js" "$TARGET_DIR/src/assets"
 
-# Check if index.html is at root and move to src/ if not already in src/
-if [ -f "$TARGET_DIR/index.html" ] && [ ! -f "$TARGET_DIR/src/index.html" ]; then
-  echo "Moving root index.html to src/index.html..."
-  mv "$TARGET_DIR/index.html" "$TARGET_DIR/src/index.html"
-elif [ ! -f "$TARGET_DIR/src/index.html" ]; then
-  echo "Creating default offline-first src/index.html..."
+# If starter files exist in templates, copy them; otherwise generate clean starter UI
+if [ "$IS_NEW_REPO" = true ] || [ ! -f "$TARGET_DIR/src/index.html" ]; then
+  # 1. src/index.html
   cat << 'HTML' > "$TARGET_DIR/src/index.html"
 <!DOCTYPE html>
 <html lang="en">
@@ -157,45 +188,114 @@ elif [ ! -f "$TARGET_DIR/src/index.html" ]; then
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
-  <div class="container">
-    <h1>🚀 Offline Capacitor App</h1>
-    <p>Compiled natively via Cloud Gradle & GitHub Actions.</p>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-content">
+        <span class="app-badge">Capacitor + Gradle</span>
+        <div id="connection-status" class="status-pill status-offline">● Checking...</div>
+      </div>
+      <h1>Offline-First App</h1>
+      <p class="subtitle">Cloud-Compiled Android APK via GitHub Actions</p>
+    </header>
+
+    <main class="app-main">
+      <section class="card">
+        <h2>💾 Local Offline Storage Demo</h2>
+        <p>This state is saved purely on your device using <code>localStorage</code>.</p>
+        <div class="counter-box">
+          <button id="btn-decrement" class="btn btn-secondary">-</button>
+          <span id="counter-value" class="counter-display">0</span>
+          <button id="btn-increment" class="btn btn-primary">+</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🤖 AI-Assisted Development</h2>
+        <p>Your repository contains <code>AI_INSTRUCTIONS.md</code> and <code>REPO_ALL_IN_ONE.txt</code>.</p>
+        <p class="hint">Feed these files to ChatGPT, Claude, or Gemini to build features adhering to strict Capacitor & Gradle mobile rules.</p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Target Directory: <code>src/</code> • Scheme: <code>https://localhost</code></p>
+    </footer>
   </div>
+
   <script src="js/app.js"></script>
 </body>
 </html>
 HTML
-fi
 
-# Create default css/js if empty
-if [ ! -f "$TARGET_DIR/src/css/style.css" ]; then
-  # Look for root css
-  root_css=$(find "$TARGET_DIR" -maxdepth 1 -name "*.css" | head -n 1)
-  if [ -n "$root_css" ]; then
-    echo "Relocating $root_css to src/css/style.css..."
-    mv "$root_css" "$TARGET_DIR/src/css/style.css"
-  else
-    cat << 'CSS' > "$TARGET_DIR/src/css/style.css"
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #121212; color: #ffffff; padding: 20px; }
-.container { max-width: 600px; margin: 40px auto; text-align: center; }
-h1 { color: #00e676; margin-bottom: 12px; }
+  # 2. src/css/style.css
+  cat << 'CSS' > "$TARGET_DIR/src/css/style.css"
+:root {
+  --bg-color: #0d1117;
+  --surface-color: #161b22;
+  --border-color: #30363d;
+  --primary-color: #2ea043;
+  --text-main: #f0f6fc;
+  --text-muted: #8b949e;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--bg-color);
+  color: var(--text-main);
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+  display: flex;
+  justify-content: center;
+}
+.app-shell { width: 100%; max-width: 480px; display: flex; flex-direction: column; padding: 24px 16px; }
+.app-header { margin-bottom: 24px; }
+.header-content { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.app-badge { font-size: 11px; font-weight: 700; text-transform: uppercase; background: #1f6feb22; color: #58a6ff; border: 1px solid #1f6feb55; padding: 4px 8px; border-radius: 12px; }
+.status-pill { font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 12px; }
+.status-online { background: #23863633; color: #3fb950; border: 1px solid #23863666; }
+.status-offline { background: #da363333; color: #f85149; border: 1px solid #da363366; }
+h1 { font-size: 26px; font-weight: 700; margin-bottom: 6px; }
+.subtitle { font-size: 14px; color: var(--text-muted); }
+.app-main { flex: 1; display: flex; flex-direction: column; gap: 16px; }
+.card { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 18px; }
+.card h2 { font-size: 18px; margin-bottom: 8px; }
+.card p { font-size: 14px; color: var(--text-muted); line-height: 1.5; margin-bottom: 12px; }
+.hint { font-size: 13px !important; color: #79c0ff !important; background: #0d419d22; padding: 8px 12px; border-radius: 8px; border-left: 3px solid #1f6feb; }
+.counter-box { display: flex; align-items: center; justify-content: center; gap: 20px; margin-top: 16px; }
+.counter-display { font-size: 32px; font-weight: 700; min-width: 48px; text-align: center; }
+.btn { width: 48px; height: 48px; border-radius: 50%; border: none; font-size: 22px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.btn:active { transform: scale(0.95); }
+.btn-primary { background: var(--primary-color); color: white; }
+.btn-secondary { background: #21262d; color: white; border: 1px solid var(--border-color); }
+.app-footer { text-align: center; margin-top: 32px; font-size: 12px; color: var(--text-muted); }
+code { background: rgba(110, 118, 129, 0.2); padding: 2px 6px; border-radius: 4px; font-family: monospace; }
 CSS
-  fi
-fi
 
-if [ ! -f "$TARGET_DIR/src/js/app.js" ]; then
-  root_js=$(find "$TARGET_DIR" -maxdepth 1 -name "*.js" -not -name "server.js" -not -name "capacitor.config.js" | head -n 1)
-  if [ -n "$root_js" ]; then
-    echo "Relocating $root_js to src/js/app.js..."
-    mv "$root_js" "$TARGET_DIR/src/js/app.js"
-  else
-    cat << 'JS' > "$TARGET_DIR/src/js/app.js"
+  # 3. src/js/app.js
+  cat << 'JS' > "$TARGET_DIR/src/js/app.js"
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("Offline Capacitor Application Initialized");
+  const statusEl = document.getElementById("connection-status");
+  function update() {
+    if (!statusEl) return;
+    statusEl.textContent = navigator.onLine ? "● Online" : "● Offline (Local Mode)";
+    statusEl.className = navigator.onLine ? "status-pill status-online" : "status-pill status-offline";
+  }
+  window.addEventListener("online", update);
+  window.addEventListener("offline", update);
+  update();
+
+  const display = document.getElementById("counter-value");
+  const btnInc = document.getElementById("btn-increment");
+  const btnDec = document.getElementById("btn-decrement");
+  if (display && btnInc && btnDec) {
+    let count = parseInt(localStorage.getItem("offline_counter") || "0", 10);
+    display.textContent = count;
+    btnInc.addEventListener("click", () => { count++; localStorage.setItem("offline_counter", count); display.textContent = count; });
+    btnDec.addEventListener("click", () => { count--; localStorage.setItem("offline_counter", count); display.textContent = count; });
+  }
 });
 JS
-  fi
+  echo -e "      ${GREEN}✓ Created offline-first mobile UI in src/${NC}"
 fi
 
 # Ensure package.json exists
@@ -214,9 +314,9 @@ PKG
 fi
 
 # ------------------------------------------------------------------------------
-# Step 5: Inject Capacitor Config & Cloud Gradle Workflow
+# Step 5: Inject Capacitor Config, CI Workflow & AI Instructions
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[5/7] Injecting Capacitor config & GitHub Actions Cloud Gradle workflow...${NC}"
+echo -e "\n${BOLD}[5/6] ⚙️ Injecting Capacitor config, Gradle workflow & AI docs...${NC}"
 
 # 1. capacitor.config.json
 app_slug=$(echo "${SELECTED_REPO##*/}" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]')
@@ -316,144 +416,99 @@ jobs:
           echo "- **Download via Termux:** \`gh run download ${{ github.run_id }} -n app-debug-apk\`" >> $GITHUB_STEP_SUMMARY
 WORKFLOW
 
-# 3. FOLDER_ORGANIZATION.md
-cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
-# Project Layout & Architecture Guide (Offline-First Capacitor)
+# 3. AI_INSTRUCTIONS.md
+cat << 'AI_DOC' > "$TARGET_DIR/AI_INSTRUCTIONS.md"
+# 🤖 AI Assistant Guidelines & Development Rules (Capacitor + Cloud Gradle)
 
-This repository is structured for an **offline-first hybrid mobile application** built using **Capacitor** and compiled into a native Android APK using **Gradle** via GitHub Actions in the cloud.
+> **Feed this file (or `REPO_ALL_IN_ONE.txt`) to ChatGPT, Claude, Gemini, or Antigravity to build features with 100% Capacitor & Gradle compatibility.**
 
 ---
 
-## 📁 Directory Hierarchy
+## 🎯 System Prompt & Architecture Constraints
+You are an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture.
+
+### 🛑 5 Strict Rules for Capacitor & Gradle Compatibility:
+1. **Relative Paths Exclusively:**
+   - Inside WebView, files load from `https://localhost` or `https://appassets.androidplatform.net`.
+   - Never use absolute root paths (`/css/style.css`, `/js/app.js`).
+   - ALWAYS use relative paths (`css/style.css`, `js/app.js`, `./assets/icon.png`).
+2. **Dedicated `src/` Layout:**
+   - All client files MUST live in `src/` (`src/index.html`, `src/css/`, `src/js/`, `src/assets/`).
+   - `capacitor.config.json` targets `"webDir": "src"`.
+3. **Client-Side Only (No Node.js Runtime):**
+   - The APK runs purely in a mobile WebView.
+   - For backend queries, use `fetch("https://your-api.com/...")` with full HTTPS.
+4. **Offline-First Persistence:**
+   - App must boot without an internet connection.
+   - Use `localStorage` or `IndexedDB` for local state persistence.
+5. **Mobile Viewport & Safe Areas:**
+   - Viewport meta tag: `<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">`.
+   - Respect notch insets using `padding-top: env(safe-area-inset-top)`.
+
+---
+
+## 🐘 How Cloud Gradle Builds the APK
+The GitHub Actions workflow `.github/workflows/build-apk.yml` runs on Ubuntu cloud runners. It installs Capacitor, runs `npx cap sync android` to copy `src/` into the native Android folder, and executes `./gradlew assembleDebug` to compile `app-debug.apk`.
+AI_DOC
+
+# 4. FOLDER_ORGANIZATION.md
+cat << 'ORG_DOC' > "$TARGET_DIR/FOLDER_ORGANIZATION.md"
+# Project Layout & Architecture Guide (Offline-First Capacitor)
 
 ```
 .
 ├── src/                               # 🌐 Web Assets & Application Core (Capacitor webDir)
 │   ├── index.html                     # 🎯 Primary offline entry point
-│   ├── css/                           # 🎨 Styling & stylesheets
-│   │   └── style.css
-│   ├── js/                            # ⚙️ Application logic, state & Capacitor plugins
-│   │   └── app.js
-│   └── assets/                        # 🖼️ Offline icons, images, audio, fonts
-│       └── icon.png
+│   ├── css/                           # 🎨 Styling & stylesheets (style.css)
+│   ├── js/                            # ⚙️ Application logic (app.js)
+│   └── assets/                        # 🖼️ Offline icons, images, fonts
 │
-├── .github/
-│   └── workflows/
-│       └── build-apk.yml              # 🤖 Cloud CI/CD: Capacitor sync + Gradle APK build
-│
+├── .github/workflows/build-apk.yml    # 🤖 Cloud CI/CD: Capacitor sync + Gradle APK build
 ├── capacitor.config.json              # 📱 Capacitor native bridge configuration
-├── package.json                       # 📦 NPM dependencies & build scripts
-├── FOLDER_ORGANIZATION.md             # 📖 This architecture & layout blueprint
+├── AI_INSTRUCTIONS.md                 # 🤖 AI assistant prompts & mobile rules
+├── FOLDER_ORGANIZATION.md             # 📖 Architecture & layout blueprint
 ├── README.md                          # 🚀 Project documentation & APK download guide
 └── REPO_ALL_IN_ONE.txt                # 🧠 Consolidated codebase digest with AI prompt
 ```
-
----
-
-## 🏗️ Architecture Design Principles
-
-### 1. Dedicated `src/` Web Directory
-- **Offline-First Standard:** All client-side runtime files live inside `src/`.
-- **Entry Point:** `src/index.html` is served locally by the Capacitor WebView with no external web server dependency required.
-- **Dedicated Subfolders:** Stylesheets are strictly grouped in `src/css/` and scripts in `src/js/` to maintain clean separation of concerns.
-
-### 2. Capacitor Bridge Configuration
-- In `capacitor.config.json`, `"webDir": "src"` binds Capacitor directly to the `src/` folder.
-- Assets inside `src/` are synchronized into the Android Gradle assets folder (`android/app/src/main/assets/public/`) during build time via `npx cap sync android`.
-
-### 3. Automated Cloud-Based Gradle Build Pipeline
-- **Zero Local Footprint:** Neither Java JDK, Android SDK, nor Gradle need to be installed on your development machine or mobile Termux environment.
-- When you push changes to `main` (or trigger via GitHub CLI `gh workflow run`), `.github/workflows/build-apk.yml`:
-  1. Spins up an Ubuntu cloud runner.
-  2. Sets up Java 17 and Android SDK.
-  3. Installs Capacitor dependencies.
-  4. Scaffolds or updates the Android native Gradle project (`npx cap sync android`).
-  5. Compiles the APK with `./gradlew assembleDebug`.
-  6. Publishes the ready-to-install `app-debug.apk` directly to GitHub Actions Artifacts.
-
----
-
-## 📲 Retrieving Your APK (Termux & Mobile Friendly)
-
-You can check and download the built APK directly using GitHub CLI:
-
-```bash
-# 1. View recent build status
-gh run list --workflow=build-apk.yml
-
-# 2. Download the compiled APK
-gh run download <RUN_ID> -n app-debug-apk
-
-# 3. Move APK to your phone's Download folder (if in Termux)
-mv app-debug.apk /sdcard/Download/
-```
 ORG_DOC
 
-# 4. Update or Create README.md
-if [ ! -f "$TARGET_DIR/README.md" ]; then
-  cat << README_TPL > "$TARGET_DIR/README.md"
-# ${SELECTED_REPO##*/} (Capacitor + Cloud Gradle Builder)
+# 5. README.md
+cat << README_DOC > "$TARGET_DIR/README.md"
+# ${SELECTED_REPO##*/} (Offline-First Capacitor + Cloud Gradle)
 
-An offline-first mobile application structured for **Capacitor** with automated **GitHub Actions Gradle APK compilation**.
+An offline-first hybrid mobile app structured for **Capacitor** with automated **GitHub Actions Gradle APK compilation**.
 
 ---
 
-## 🚀 Quick Start & Development
-
+## 🚀 Development & Structure
 - **Web Source:** All client code lives in \`src/\`.
-- **Offline Entrypoint:** \`src/index.html\`
+- **Entrypoint:** \`src/index.html\`
 - **Styles:** \`src/css/style.css\`
 - **Scripts:** \`src/js/app.js\`
 
-For full details on the directory hierarchy and architecture decisions, see [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md).
+See [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md) for full directory specifications and [AI_INSTRUCTIONS.md](AI_INSTRUCTIONS.md) for AI-assisted development instructions.
 
 ---
 
 ## 🤖 Cloud Gradle APK Compilation
-
-You do **not** need to install heavy Android SDKs or Gradle locally. Every push to the repository automatically triggers the GitHub Actions workflow to build the Android APK.
-
-### Trigger Build Manually (Termux or Terminal)
+Trigger APK build manually via Termux or any terminal:
 \`\`\`bash
 gh workflow run build-apk.yml
 \`\`\`
 
-### Download the Compiled APK
+Download the finished APK:
 \`\`\`bash
-# List recent build runs
-gh run list --workflow=build-apk.yml
-
-# Download the latest artifact
-gh run download --name app-debug-apk
+gh run download -n app-debug-apk
+mv app-debug.apk /sdcard/Download/
 \`\`\`
-README_TPL
-else
-  # Append cloud build instructions if not present
-  if ! grep -q "Cloud Gradle APK Compilation" "$TARGET_DIR/README.md"; then
-    cat << 'README_APPEND' >> "$TARGET_DIR/README.md"
-
----
-
-## 🤖 Cloud Gradle APK Compilation (Capacitor)
-This repository is configured with an automated GitHub Actions workflow (`.github/workflows/build-apk.yml`) that compiles an Android APK in the cloud using Gradle. See [FOLDER_ORGANIZATION.md](FOLDER_ORGANIZATION.md) for full architectural guidelines.
-
-```bash
-# Trigger build manually via GitHub CLI
-gh workflow run build-apk.yml
-
-# Download compiled APK
-gh run download --name app-debug-apk
-```
-README_APPEND
-  fi
-fi
+README_DOC
 
 # ------------------------------------------------------------------------------
 # Step 6: Generate All-in-One Code Digest (REPO_ALL_IN_ONE.txt)
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[6/7] Generating All-in-One Code Digest with AI Prompt...${NC}"
+echo -e "\n${BOLD}[6/6] 🧠 Generating All-in-One Code Digest with AI Prompt...${NC}"
 
-AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and restructure the project layout into a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Finally, generate a comprehensive, clear README.md and FOLDER_ORGANIZATION.md that explicitly maps out this directory hierarchy and outlines how the automated GitHub Actions workflow compiles the project into an Android APK.'
+AI_PROMPT='Act as an expert mobile developer and project organizer. Review the provided repository files and develop the application following a clean, minimal, and scalable offline-first Capacitor architecture. Group all web source assets into a dedicated src/ directory with explicit subfolders for CSS (src/css/) and JavaScript (src/js/), ensuring index.html remains the primary offline entry point at the root of src/. Verify that the capacitor.config.json correctly targets src as its webDir. Ensure all paths in index.html are strictly relative, that offline storage (localStorage/IndexedDB) is utilized, and outline how the automated GitHub Actions workflow compiles the project into an Android APK via Gradle.'
 
 OUTPUT_DIGEST="$TARGET_DIR/REPO_ALL_IN_ONE.txt"
 rm -f "$OUTPUT_DIGEST"
@@ -489,7 +544,6 @@ BINARY_EXTENSIONS="png|jpg|jpeg|gif|svg|ico|webp|mp3|mp4|apk|aab|keystore|jar|zi
 
 find "$TARGET_DIR" -type f | while read -r filepath; do
   relpath="${filepath#$TARGET_DIR/}"
-  
   [ "$filepath" = "$OUTPUT_DIGEST" ] && continue
   echo "$relpath" | grep -qE "$IGNORE_PATTERN" && continue
   echo "$relpath" | grep -qiE "\.($BINARY_EXTENSIONS)$" && continue
@@ -509,40 +563,39 @@ FILE_HEADER
   fi
 done
 
-echo -e "${GREEN}✓ Digest successfully written to:${NC} ${BOLD}REPO_ALL_IN_ONE.txt${NC}"
+echo -e "      ${GREEN}✓ Digest created:${NC} ${BOLD}REPO_ALL_IN_ONE.txt${NC}"
 
 # ------------------------------------------------------------------------------
-# Step 7: Git Commit, Push & Optional Workflow Trigger
+# Git Commit, Push & Dispatch
 # ------------------------------------------------------------------------------
-echo -e "\n${BOLD}[7/7] Committing and pushing changes to GitHub...${NC}"
-
+echo -e "\n${BOLD}🚀 Pushing project to GitHub...${NC}"
 cd "$TARGET_DIR"
 git add .
-if git diff-index --quiet HEAD --; then
-  echo "No changes needed to commit."
+if git diff-index --quiet HEAD -- 2>/dev/null; then
+  echo "      No changes needed to commit."
 else
-  git commit -m "feat(capacitor): configure offline src layout, cloud Gradle build, and organization docs"
-  echo "Pushing to origin $CURRENT_BRANCH..."
-  git push origin "$CURRENT_BRANCH"
-  echo -e "${GREEN}✓ Changes successfully pushed to GitHub!${NC}"
+  git commit -m "feat: initial offline-first capacitor setup with cloud gradle CI and AI instructions"
+  git push -u origin "$CURRENT_BRANCH"
+  echo -e "      ${GREEN}✓ Successfully pushed to GitHub!${NC}"
 fi
 
-echo -e "\n${BOLD}================================================================${NC}"
-echo -e "${GREEN}${BOLD}🎉 Installation Complete!${NC}"
-echo -e "Target: ${BOLD}${SELECTED_REPO:-$TARGET_DIR}${NC}"
-echo -e "• Offline web source:  ${CYAN}src/ (index.html, css/, js/)${NC}"
-echo -e "• Cloud Gradle CI:     ${CYAN}.github/workflows/build-apk.yml${NC}"
-echo -e "• Layout Guide:        ${CYAN}FOLDER_ORGANIZATION.md${NC}"
-echo -e "• All-in-One Digest:   ${CYAN}REPO_ALL_IN_ONE.txt${NC}"
-echo -e "${BOLD}================================================================${NC}\n"
+echo -e "\n${BOLD}════════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}${BOLD}🎉 SUCCESS! Your Project is Live on GitHub!${NC}"
+echo -e "Repository: ${CYAN}https://github.com/${SELECTED_REPO}${NC}"
+echo -e "════════════════════════════════════════════════════════════════"
+echo -e "✨ ${BOLD}How to use this with an AI Assistant:${NC}"
+echo -e "   1. Open ${CYAN}REPO_ALL_IN_ONE.txt${NC} or ${CYAN}AI_INSTRUCTIONS.md${NC}."
+echo -e "   2. Copy and paste the contents into ChatGPT, Claude, Gemini, or Antigravity."
+echo -e "   3. Ask the AI to build screens or features—it will strictly respect"
+echo -e "      relative paths, offline storage, and Capacitor/Gradle standards!\n"
 
 if [ "$IS_LOCAL" = false ]; then
   read -rp "Would you like to trigger the Cloud APK build right now? [y/N]: " run_now
   if [[ "$run_now" =~ ^[Yy]$ ]]; then
     echo -e "Triggering GitHub Actions workflow..."
     gh workflow run build-apk.yml --repo "$SELECTED_REPO"
-    echo -e "${GREEN}✓ Workflow dispatched!${NC}"
-    echo -e "To view progress, run: ${CYAN}gh run list --repo $SELECTED_REPO${NC}"
-    echo -e "To download the APK when finished: ${CYAN}gh run download --repo $SELECTED_REPO -n app-debug-apk${NC}"
+    echo -e "${GREEN}✓ Workflow dispatched in the cloud!${NC}"
+    echo -e "Check progress: ${CYAN}gh run list --repo $SELECTED_REPO${NC}"
+    echo -e "Download APK:   ${CYAN}gh run download --repo $SELECTED_REPO -n app-debug-apk${NC}"
   fi
 fi

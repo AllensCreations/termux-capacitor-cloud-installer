@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Offline Mobile App</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div class="header-content">
+        <span class="app-badge">Capacitor + Gradle</span>
+        <div id="connection-status" class="status-pill status-offline">● Checking...</div>
+      </div>
+      <h1>Offline-First App</h1>
+      <p class="subtitle">Cloud-Compiled Android APK via GitHub Actions</p>
+    </header>
+
+    <main class="app-main">
+      <section class="card">
+        <h2>💾 Local Offline Storage Demo</h2>
+        <p>This state is saved purely on your device using <code>localStorage</code>.</p>
+        <div class="counter-box">
+          <button id="btn-decrement" class="btn btn-secondary">-</button>
+          <span id="counter-value" class="counter-display">0</span>
+          <button id="btn-increment" class="btn btn-primary">+</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>🤖 AI-Assisted Development</h2>
+        <p>Your repository contains <code>AI_INSTRUCTIONS.md</code> and <code>REPO_ALL_IN_ONE.txt</code>.</p>
+        <p class="hint">Feed these files to ChatGPT, Claude, or Gemini to build features adhering to strict Capacitor & Gradle mobile rules.</p>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <p>Target Directory: <code>src/</code> • Scheme: <code>https://localhost</code></p>
+    </footer>
+  </div>
+
+  <script src="js/app.js"></script>
+</body>
+</html>
